@@ -25,6 +25,15 @@ describe('planejamento de plantões', () => {
     expect(defaultOnCallRange('2026-07-04')).toMatchObject({ start: '2026-07-04T19:00', end: '2026-07-05T19:00', durationMinutes: 1440 });
   });
 
+  it('contabiliza corretamente os sábados informados no ciclo 25–26', () => {
+    expect(createOnCallRecord('Jean Carlo Machado Ribeiro', '2026-06-27', 'jean')).toMatchObject({
+      start: '2026-06-27T19:00', end: '2026-06-28T19:00', durationMinutes: 1440,
+    });
+    expect(createOnCallRecord('Caroline Ribeiro de Freitas', '2026-07-04', 'caroline')).toMatchObject({
+      start: '2026-07-04T19:00', end: '2026-07-05T19:00', durationMinutes: 1440,
+    });
+  });
+
   it('mostra o mesmo plantonista em todos os dias realmente cobertos no modo dividido', () => {
     const record = createOnCallRecord('Bruno Bueno', '2026-07-03', 'p1');
     expect(segmentsForDay([record], '2026-07-03')[0]).toMatchObject({ startTime: '19:00', endTime: '24:00', startsHere: true });

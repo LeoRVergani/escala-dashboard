@@ -91,20 +91,16 @@ export function calendarDates(monthKey: MonthKey): string[] {
  */
 export function defaultOnCallRange(dateIso: string): { start: string; end: string; durationMinutes: number } {
   const [year, month, day] = dateIso.split('-').map(Number);
-  const startDate = new Date(year, month - 1, day, 19, 0, 0, 0);
-  const endDate = new Date(startDate);
-  const weekday = startDate.getDay();
-  if (weekday === 5 || weekday === 6) {
-    endDate.setDate(endDate.getDate() + 1);
-    endDate.setHours(19, 0, 0, 0);
-  } else {
-    endDate.setDate(endDate.getDate() + 1);
-    endDate.setHours(7, 0, 0, 0);
-  }
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (!dateIso.match(/^\d{4}-\d{2}-\d{2}$/) || Number.isNaN(date.getTime())) throw new Error(`Data de plantão inválida: ${dateIso}`);
+  const weekday = date.getUTCDay();
+  const isContinuousWeekendEntry = weekday === 5 || weekday === 6;
+  date.setUTCDate(date.getUTCDate() + 1);
+  const nextDate = `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
   return {
-    start: formatLocalDateTime(startDate),
-    end: formatLocalDateTime(endDate),
-    durationMinutes: Math.round((endDate.getTime() - startDate.getTime()) / 60000),
+    start: `${dateIso}T19:00`,
+    end: `${nextDate}T${isContinuousWeekendEntry ? '19:00' : '07:00'}`,
+    durationMinutes: isContinuousWeekendEntry ? 24 * 60 : 12 * 60,
   };
 }
 

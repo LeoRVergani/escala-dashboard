@@ -55,6 +55,20 @@ describe('visual do Plantão COSI', () => {
     expect(props.onAddRecord).toHaveBeenCalledWith(expect.objectContaining({ technician: 'Bruno Bueno', start: '2026-07-02T19:00' }));
   });
 
+  it('cria 24h ao arrastar um plantonista para sábado', () => {
+    const props = baseProps();
+    const { container } = render(<OnCallEditor {...props} />);
+    const roster = container.querySelector('.oncall-roster-item') as HTMLElement;
+    const saturday = [...container.querySelectorAll('.oncall-day')].find((item) => item.textContent?.startsWith('04')) as HTMLElement;
+    const data = new Map<string, string>();
+    const dataTransfer = { setData: (type: string, value: string) => data.set(type, value), getData: (type: string) => data.get(type) ?? '' };
+    fireEvent.dragStart(roster, { dataTransfer });
+    fireEvent.drop(saturday, { dataTransfer });
+    expect(props.onAddRecord).toHaveBeenCalledWith(expect.objectContaining({
+      start: '2026-07-04T19:00', end: '2026-07-05T19:00', durationMinutes: 1440,
+    }));
+  });
+
   it('permite escolher manualmente a cor do colaborador', () => {
     const props = baseProps();
     render(<OnCallEditor {...props} />);
