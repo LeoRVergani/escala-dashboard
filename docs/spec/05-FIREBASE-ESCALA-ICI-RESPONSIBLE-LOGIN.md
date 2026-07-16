@@ -10,7 +10,7 @@ Após o login Microsoft, Firebase Auth fornece o UID. O dashboard lê `user_link
 
 ## Documentos publicados
 
-Escalas regulares escrevem `members`, `schedule_periods` e `schedule_assignments`. Plantão COSI preserva intervalos completos em `oncall_periods` e `oncall_assignments`. Documentos novos usam `schemaVersion: 2` e também mantêm os nomes legados confirmados pelo leitor KMP e pelo dashboard anterior: `periodId`, `assignmentId`, `onCallId`, `scaleName`, `startDateTime`, `endDateTime`, `sourceType: FIREBASE_DASHBOARD`, `publishedBy` e `active`.
+Escalas regulares escrevem `members`, `schedule_periods` e `schedule_assignments`. Plantão COSI preserva intervalos completos em `oncall_periods` e `oncall_assignments`. Documentos novos usam `schemaVersion: 2` e também mantêm os nomes legados confirmados pelos leitores KMP e EscalaSOC: `periodId`, `assignmentId`, `onCallId`, `scaleName`, `roles`, `locationMode`, `startDateTime`, `endDateTime`, `sourceType: FIREBASE_DASHBOARD`, `publishedBy` e `active`.
 
 IDs de período, membro e assignment são determinísticos. Membros aceitam login, nome ou ambos; o ID usa time e identidade normalizada. A publicação usa lotes de no máximo 400 operações. Atualizar faz upsert e preserva assignments não presentes; substituir consulta e remove somente assignments com o mesmo `teamId` e `periodId`. Nenhuma ação é automática. O leitor KMP atual aceita apenas `WORK_SHIFT`, `OFF` e `VACATION`; demais situações preservam o código real em `statusCode` e usam `OFF` como fallback legado não trabalhado até o enum do leitor ser ampliado.
 

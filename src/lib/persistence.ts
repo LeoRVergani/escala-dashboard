@@ -6,7 +6,7 @@ import type { AuthenticatedDashboardUser, ScheduleState, Team, Technician } from
 
 export interface MemberDocument {
   id: string; memberId: string; teamId: string; login?: string; fullName?: string;
-  displayName: string; scaleName: string; active: true; source: 'dashboard'; schemaVersion: 2;
+  displayName: string; scaleName: string; active: true; roles: string[]; source: 'dashboard'; schemaVersion: 2;
 }
 export interface PeriodDocument {
   id: string; periodId: string; teamId: string; name: string; startDate: string; endDate: string;
@@ -17,7 +17,7 @@ export interface AssignmentDocument {
   id: string; assignmentId: string; teamId: string; periodId: string; memberId: string; scaleName: string;
   date: string; assignmentType: 'WORK_SHIFT' | 'OFF' | 'VACATION'; shiftCode?: string;
   shiftId?: string; shiftName?: string; statusCode?: string; customText?: string; source: 'DASHBOARD';
-  updatedByLogin: string; schemaVersion: 2;
+  locationMode: 'NOT_APPLICABLE'; updatedByLogin: string; schemaVersion: 2;
 }
 export interface OnCallAssignmentDocument {
   id: string; onCallId: string; teamId: string; periodId: string; memberId: string; scaleName: string;
@@ -62,7 +62,7 @@ function memberDocuments(state: ScheduleState, team: Team): { documents: MemberD
     const id = deterministicMemberId(team.id, member);
     const document: MemberDocument = {
       id, memberId: id, teamId: team.id, ...(login ? { login } : {}), ...(fullName ? { fullName } : {}),
-      displayName: fullName ?? login, scaleName: fullName ?? login, active: true, source: 'dashboard', schemaVersion: 2,
+      displayName: fullName ?? login, scaleName: fullName ?? login, active: true, roles: [], source: 'dashboard', schemaVersion: 2,
     };
     byId.set(id, document);
     byLocalId.set(member.id, document);
@@ -107,7 +107,7 @@ export function buildStructuredPublicationPayload(
         assignments.push({
           id, assignmentId: id, teamId: team.id, periodId, memberId: member.id, scaleName: member.displayName,
           date: dates[index], assignmentType, ...(work ? { shiftCode: shift.code, shiftId: value.shift, shiftName: shift.label } : { statusCode: shift.code }),
-          ...(value.text ? { customText: value.text } : {}), source: 'DASHBOARD', updatedByLogin: actor.login, schemaVersion: 2,
+          ...(value.text ? { customText: value.text } : {}), source: 'DASHBOARD', locationMode: 'NOT_APPLICABLE', updatedByLogin: actor.login, schemaVersion: 2,
         });
       }
     }
