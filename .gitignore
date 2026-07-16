@@ -2,6 +2,7 @@ node_modules/
 dist/
 .env
 .env.*
+!.env.example
 *.log
 
 # Arquivos reais usados apenas na validação local; não versionar.

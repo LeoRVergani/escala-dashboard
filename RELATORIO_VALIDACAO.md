@@ -1,4 +1,8 @@
-# Relatório de validação — Painel de Escalas 1.9.0
+# Relatório de validação — Painel de Escalas 1.10.0
+
+## Release 1.10.0
+
+Firebase Auth/Microsoft, seleção de times por `responsibleLogin`, publicação estruturada e trocas por `teamId` foram integrados sem alterar os editores. Regras locais são validadas exclusivamente no Emulator e não foram implantadas. Nomes pessoais e logins de responsáveis não estão fixos no código.
 
 ## Release 1.9.0
 

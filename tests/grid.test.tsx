@@ -120,8 +120,8 @@ describe('grade de escalas (via App)', () => {
     expect(await screen.findByRole('region', { name: /alertas de conflito/i })).toHaveTextContent(/não bloqueiam a edição/i);
   });
 
-  it('mantém a publicação Firebase desativada na interface', async () => {
+  it('não permite publicar sem autenticação/time e bloqueia dados de demonstração', async () => {
     await renderWithDemo();
-    expect(screen.queryByRole('button', { name: /publicar/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /publicar escala/i })).toBeDisabled();
   });
 });

@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function link() { return get(/databases/$(database)/documents/user_links/$(request.auth.uid)).data; }
+    function linked() { return signedIn() && exists(/databases/$(database)/documents/user_links/$(request.auth.uid)) && link().active == true && link().login is string; }
+    function login() { return link().login; }
+    function systemAdmin() { return signedIn() && exists(/databases/$(database)/documents/system_admins/$(request.auth.uid)) && get(/databases/$(database)/documents/system_admins/$(request.auth.uid)).data.active == true; }
+    function responsible(teamId) { return linked() && exists(/databases/$(database)/documents/teams/$(teamId)) && get(/databases/$(database)/documents/teams/$(teamId)).data.responsibleLogin == login(); }
+    function canManage(teamId) { return systemAdmin() || responsible(teamId); }
+    function validTeamCreate(teamId) { return request.resource.data.id == teamId && request.resource.data.teamId == teamId && request.resource.data.responsibleLogin is string; }
+    function validScopedCreate() { return request.resource.data.teamId is string && canManage(request.resource.data.teamId); }
+    function teamUnchanged() { return request.resource.data.teamId == resource.data.teamId; }
+
+    match /teams/{teamId} {
+      allow read: if systemAdmin() || (linked() && resource.data.active == true && resource.data.responsibleLogin == login());
+      allow create: if systemAdmin() && validTeamCreate(teamId);
+      allow update: if systemAdmin() || (responsible(teamId) && teamUnchanged() && request.resource.data.responsibleLogin == resource.data.responsibleLogin);
+      allow delete: if systemAdmin();
+    }
+    match /members/{id} {
+      allow read: if canManage(resource.data.teamId);
+      allow create: if validScopedCreate() && request.resource.data.source != 'DEMO';
+      allow update: if teamUnchanged() && canManage(resource.data.teamId);
+      allow delete: if canManage(resource.data.teamId);
+    }
+    match /schedule_periods/{id} {
+      allow read: if canManage(resource.data.teamId);
+      allow create: if validScopedCreate() && request.resource.data.sourceType != 'DEMO';
+      allow update: if teamUnchanged() && canManage(resource.data.teamId) && request.resource.data.sourceType != 'DEMO';
+      allow delete: if canManage(resource.data.teamId);
+    }
+    match /schedule_assignments/{id} {
+      allow read: if canManage(resource.data.teamId);
+      allow create: if validScopedCreate() && request.resource.data.source != 'DEMO';
+      allow update: if teamUnchanged() && canManage(resource.data.teamId);
+      allow delete: if canManage(resource.data.teamId);
+    }
+    match /oncall_periods/{id} {
+      allow read: if canManage(resource.data.teamId);
+      allow create: if validScopedCreate() && request.resource.data.sourceType != 'DEMO';
+      allow update: if teamUnchanged() && canManage(resource.data.teamId) && request.resource.data.sourceType != 'DEMO';
+      allow delete: if canManage(resource.data.teamId);
+    }
+    match /oncall_assignments/{id} {
+      allow read: if canManage(resource.data.teamId);
+      allow create: if validScopedCreate() && request.resource.data.source != 'DEMO';
+      allow update: if teamUnchanged() && canManage(resource.data.teamId);
+      allow delete: if canManage(resource.data.teamId);
+    }
+    match /shift_swap_requests/{id} {
+      allow read: if canManage(resource.data.teamId) || (linked() && resource.data.requesterLogin == login());
+      allow create: if linked() && request.resource.data.teamId in link().teamIds && request.resource.data.requesterLogin == login() && request.resource.data.status == 'PENDING';
+      allow update: if teamUnchanged() && canManage(resource.data.teamId) && request.resource.data.status in ['APPROVED', 'REJECTED'];
+      allow delete: if systemAdmin();
+    }
+    match /user_links/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || systemAdmin());
+      allow create, update, delete: if systemAdmin();
+    }
+    match /system_admins/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || systemAdmin());
+      allow write: if systemAdmin();
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

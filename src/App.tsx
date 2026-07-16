@@ -37,7 +37,18 @@ import { ImportWizard } from './components/ImportWizard';
 import { OnCallEditor } from './components/OnCallEditor';
 import { SocPlanner } from './components/SocPlanner';
 import { ConflictAlertsPanel } from './components/ConflictAlertsPanel';
+import { FirebaseDashboardBar } from './components/FirebaseDashboardBar';
+import { PublicationDialog } from './components/PublicationDialog';
+import { SwapRequestsDialog } from './components/SwapRequestsDialog';
+import { TeamDialog } from './components/TeamDialog';
 import { moveSocAssignment, removeSocAssignment, updateSocAssignment, type SocShiftId } from './lib/socPlanner';
+import { useFirebaseDashboard } from './hooks/useFirebaseDashboard';
+import { signInWithMicrosoft, signOutDashboard } from './lib/authRepository';
+import { buildPublicationPreview, type PublicationPreview } from './lib/publicationPreview';
+import { publishStructuredSchedule, type PublicationMode } from './lib/schedulePublishRepository';
+import { decideSwapRequest, loadSwapRequests } from './lib/swapRequestsRepository';
+import { saveTeam } from './lib/teamsRepository';
+import type { ShiftSwapRequest, Team } from './types';
 
 interface PendingImport {
   wb: XLSX.WorkBook;
@@ -64,6 +75,7 @@ function shortN1Name(raw: string): string {
 
 export default function App() {
   const history = useHistory<ScheduleState | null>(null);
+  const firebaseDashboard = useFirebaseDashboard();
   const schedule = history.state;
   const [n1Layer, setN1Layer] = useState<ServiceDeskN1Layer>('principal');
   const [pending, setPending] = useState<PendingImport | null>(null);
@@ -79,6 +91,10 @@ export default function App() {
   const toastTimer = useRef<number>();
   const conflictPanelRef = useRef<HTMLElement>(null);
   const [plannerFocus, setPlannerFocus] = useState<{ technicianId: string; day: number } | null>(null);
+  const [publicationPreview, setPublicationPreview] = useState<PublicationPreview | null>(null);
+  const [swapRequests, setSwapRequests] = useState<ShiftSwapRequest[] | null>(null);
+  const [showTeamDialog, setShowTeamDialog] = useState(false);
+  const [firebaseBusy, setFirebaseBusy] = useState(false);
 
   const notify = useCallback((msg: string) => {
     setToast(msg);
@@ -141,8 +157,13 @@ export default function App() {
     (optionKey: string) => {
       if (!pending) return;
       try {
+        const option = pending.analysis.options.find((item) => item.key === optionKey);
+        if (firebaseDashboard.selectedTeam && option && !firebaseDashboard.selectedTeam.allowedImportLayouts.includes(option.layout)) {
+          const confirmed = window.confirm(`O layout ${option.layout} não está permitido para ${firebaseDashboard.selectedTeam.name}. Deseja importar apenas para revisar, sem publicação automática?`);
+          if (!confirmed) return;
+        }
         const result = buildSchedule(pending.wb, pending.analysis, optionKey);
-        history.reset(result.state);
+        history.reset({ ...result.state, sourceFileName: pending.analysis.fileName, sourceSheet: option?.sheetName, sourceLayout: option?.layout });
         setN1Layer('principal');
         setSelection(new Set());
         setClipboard(null);
@@ -156,8 +177,40 @@ export default function App() {
         notify(`Falha na importação: ${(err as Error).message}`);
       }
     },
-    [pending, history, notify],
+    [pending, history, notify, firebaseDashboard.selectedTeam],
   );
+
+  const openPublication = useCallback(async () => {
+    if (!schedule || !firebaseDashboard.user || !firebaseDashboard.selectedTeam) return;
+    setFirebaseBusy(true);
+    try { setPublicationPreview(await buildPublicationPreview(schedule, firebaseDashboard.selectedTeam, firebaseDashboard.user, conflicts)); }
+    catch (error) { firebaseDashboard.setError((error as Error).message); }
+    finally { setFirebaseBusy(false); }
+  }, [schedule, firebaseDashboard.user, firebaseDashboard.selectedTeam, conflicts, firebaseDashboard.setError]);
+
+  const confirmPublication = useCallback(async (mode: PublicationMode) => {
+    if (!publicationPreview) return;
+    setFirebaseBusy(true);
+    try { await publishStructuredSchedule(publicationPreview, mode); setPublicationPreview(null); notify('Escala publicada nas coleções estruturadas do Escala ICI.'); }
+    catch (error) { firebaseDashboard.setError((error as Error).message); }
+    finally { setFirebaseBusy(false); }
+  }, [publicationPreview, notify, firebaseDashboard.setError]);
+
+  const openSwaps = useCallback(async () => {
+    if (!firebaseDashboard.user) return;
+    setFirebaseBusy(true);
+    try { setSwapRequests(await loadSwapRequests(firebaseDashboard.user, firebaseDashboard.teams)); }
+    catch (error) { firebaseDashboard.setError((error as Error).message); }
+    finally { setFirebaseBusy(false); }
+  }, [firebaseDashboard.user, firebaseDashboard.teams, firebaseDashboard.setError]);
+
+  const decideSwap = useCallback(async (request: ShiftSwapRequest, decision: 'APPROVED' | 'REJECTED') => {
+    if (!firebaseDashboard.user) return;
+    setFirebaseBusy(true);
+    try { await decideSwapRequest(firebaseDashboard.user, firebaseDashboard.teams, request, decision); setSwapRequests((current) => current?.filter((item) => item.id !== request.id) ?? null); notify(`Solicitação ${decision === 'APPROVED' ? 'aprovada' : 'rejeitada'}. Alterações na escala continuam manuais quando os dois assignments não estão identificados.`); }
+    catch (error) { firebaseDashboard.setError((error as Error).message); }
+    finally { setFirebaseBusy(false); }
+  }, [firebaseDashboard.user, firebaseDashboard.teams, firebaseDashboard.setError, notify]);
 
   /* ---------- Edição ---------- */
 
@@ -593,9 +646,9 @@ export default function App() {
 
   useEffect(() => {
     if (!schedule) return;
-    const id = window.setTimeout(() => saveDraft(schedule), 800);
+    const id = window.setTimeout(() => saveDraft(schedule, firebaseDashboard.selectedTeamId || undefined), 800);
     return () => window.clearTimeout(id);
-  }, [schedule]);
+  }, [schedule, firebaseDashboard.selectedTeamId]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -671,7 +724,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           Painel de Escalas
-          <small>v1.9.0 · importar → escolher período/bloco → revisar → editar → exportar</small>
+          <small>v1.10.0 · importar → escolher período/bloco → revisar → editar → publicar</small>
         </div>
         {schedule && (
           <>
@@ -709,7 +762,7 @@ export default function App() {
               <button
                 className="btn"
                 onClick={() => {
-                  saveDraft(schedule);
+                  saveDraft(schedule, firebaseDashboard.selectedTeamId || undefined);
                   setDraftAvailable(true);
                   notify('Rascunho salvo neste navegador.');
                 }}
@@ -732,6 +785,25 @@ export default function App() {
           </>
         )}
       </header>
+
+      <FirebaseDashboardBar
+        configured={firebaseDashboard.configured}
+        user={firebaseDashboard.user}
+        teams={firebaseDashboard.teams}
+        selectedTeamId={firebaseDashboard.selectedTeamId}
+        loading={firebaseDashboard.loading || firebaseBusy}
+        error={firebaseDashboard.error}
+        hasSchedule={Boolean(schedule)}
+        canPublish={Boolean(schedule && firebaseDashboard.user && firebaseDashboard.selectedTeam && !schedule.isDemo && schedule.technicians.length && (schedule.viewType === 'oncall' ? schedule.onCallRecords?.length : Object.values(schedule.cells).some((row) => Object.values(row).some(Boolean))))}
+        onTeamChange={firebaseDashboard.setSelectedTeamId}
+        onLogin={() => { firebaseDashboard.setError(null); void signInWithMicrosoft().catch((error) => firebaseDashboard.setError((error as Error).message)); }}
+        onLogout={() => void signOutDashboard().catch((error) => firebaseDashboard.setError((error as Error).message))}
+        onImport={() => fileInput.current?.click()}
+        onSaveDraft={() => { if (schedule && firebaseDashboard.selectedTeam) { saveDraft(schedule, firebaseDashboard.selectedTeam.id); setDraftAvailable(true); notify(`Rascunho salvo para ${firebaseDashboard.selectedTeam.name}.`); } }}
+        onPublish={() => void openPublication()}
+        onSwaps={() => void openSwaps()}
+        onManageTeams={() => setShowTeamDialog(true)}
+      />
 
       {schedule?.serviceDeskN1 && schedule.viewType !== 'oncall' && (
         <div className="n1-modebar" aria-label="Visualização Service Desk N1">
@@ -978,7 +1050,12 @@ export default function App() {
         />
       )}
 
-      {/* Publicação Firebase temporariamente desativada. */}
+      {publicationPreview && firebaseDashboard.selectedTeam && <PublicationDialog preview={publicationPreview} team={firebaseDashboard.selectedTeam} busy={firebaseBusy} onCancel={() => setPublicationPreview(null)} onPublish={(mode) => void confirmPublication(mode)} />}
+      {swapRequests && <SwapRequestsDialog requests={swapRequests} teams={firebaseDashboard.teams} busy={firebaseBusy} onClose={() => setSwapRequests(null)} onDecide={(request, decision) => void decideSwap(request, decision)} />}
+      {showTeamDialog && firebaseDashboard.user?.isSystemAdmin && <TeamDialog onCancel={() => setShowTeamDialog(false)} onSave={(team: Team) => {
+        setFirebaseBusy(true);
+        void saveTeam(firebaseDashboard.user!, team).then(() => firebaseDashboard.reloadTeams(firebaseDashboard.user!)).then(() => { setShowTeamDialog(false); notify('Time salvo.'); }).catch((error) => firebaseDashboard.setError((error as Error).message)).finally(() => setFirebaseBusy(false));
+      }} />}
 
       {toast && (
         <div className="toast" role="status">
@@ -994,7 +1071,7 @@ export default function App() {
             className="icon-btn"
             style={{ fontSize: 11 }}
             onClick={() => {
-              clearDraft();
+              clearDraft(schedule, firebaseDashboard.selectedTeamId || undefined);
               setDraftAvailable(false);
               notify('Rascunho local apagado.');
             }}

@@ -1,4 +1,12 @@
-# Painel de Escalas 1.9.0
+# Painel de Escalas 1.10.0
+
+## Novidades da 1.10.0
+
+O dashboard integra Firebase Authentication com o provedor Microsoft e usa `user_links/{firebaseUid}` para resolver o login corporativo. O seletor mostra somente times ativos cujo `responsibleLogin` normalizado corresponde ao login autenticado; `system_admins/{firebaseUid}` pode administrar todos. O responsável é um dado de `teams`, nunca um nome ou login fixo no código, e o mesmo login pode cuidar de vários times.
+
+A publicação exige confirmação e grava documentos estruturados em `members`, `schedule_periods`/`schedule_assignments` ou `oncall_periods`/`oncall_assignments`. IDs são determinísticos, períodos existentes podem ser atualizados ou substituídos de forma restrita, DEMO é bloqueado e nenhuma gravação é automática. Solicitações pendentes são lidas de `shift_swap_requests` pelo `teamId` dos times administrados.
+
+As regras locais exigem Firebase Auth, validam `responsibleLogin` por meio de `user_links`, protegem `teamId` e negam coleções desconhecidas. Elas foram testadas apenas no Emulator e **não foram implantadas**. O fechamento da leitura anônima precisa ser coordenado com a autenticação do KMP antes de qualquer deploy das regras.
 
 ## Novidades da 1.9.0
 
@@ -45,7 +53,7 @@ npm run dev -- --host 0.0.0.0
 | `npm run fixtures` | Regenera as fixtures fictícias sanitizadas |
 | `npm run analyze -- <arquivo>` | Executa o parser da aplicação diretamente em um arquivo real |
 
-Validação desta entrega: **95 testes aprovados**, TypeScript aprovado e build Vite concluído.
+Validação desta entrega: **109 testes Vitest e 7 testes de Firestore Rules aprovados**, TypeScript aprovado e build Vite concluído.
 
 ## Plantão COSI — ciclo operacional 25–26
 
@@ -150,7 +158,7 @@ Na aba real `Novembro_25`: 2 técnicos de Madrugada, 9 de Manhã, 8 de Tarde e 2
 
 ## Firebase
 
-A publicação Firebase permanece temporariamente desativada. Importação, edição, rascunho local e exportação funcionam sem Firebase.
+A integração é habilitada somente quando as variáveis de `.env.example` são configuradas. Sem configuração ou autenticação, o dashboard continua permitindo importação, edição local, rascunho e exportação, mas mantém Publicar desabilitado. Nenhum segredo, token Microsoft ou credencial de serviço deve ser colocado no cliente.
 
 ## Fixtures sanitizadas
 

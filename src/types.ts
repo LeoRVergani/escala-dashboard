@@ -101,6 +101,63 @@ export interface ScheduleState {
   visualGrouping?: 'operational-shift';
   /** Metadados e segunda grade específicos da Equipe Técnicos de TI N1. */
   serviceDeskN1?: ServiceDeskN1Data;
+  /** Metadados não sensíveis usados no preview/publicação estruturada. */
+  sourceFileName?: string;
+  sourceSheet?: string;
+  sourceLayout?: SheetLayout;
+}
+
+/* ---------- Integração Escala ICI / Firebase ---------- */
+
+export type ScheduleKind = 'REGULAR' | 'ON_CALL';
+
+export interface Team {
+  id: string;
+  code: string;
+  name: string;
+  responsibleLogin: string;
+  scheduleKind: ScheduleKind;
+  active: boolean;
+  allowedImportLayouts: SheetLayout[];
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
+export interface UserLink {
+  firebaseUid: string;
+  login: string;
+  active: boolean;
+  primaryTeamId?: string;
+  teamIds?: string[];
+  updatedAt?: unknown;
+}
+
+export interface AuthenticatedDashboardUser {
+  uid: string;
+  displayName?: string;
+  login: string;
+  isSystemAdmin: boolean;
+  link: UserLink;
+}
+
+export type SwapRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+
+export interface ShiftSwapRequest {
+  id: string;
+  teamId: string;
+  periodId: string;
+  requesterMemberId: string;
+  requesterLogin: string;
+  requesterAssignmentId: string;
+  requestedMemberId?: string;
+  requestedLogin?: string;
+  requestedAssignmentId?: string;
+  reason: string;
+  status: SwapRequestStatus;
+  createdAt: unknown;
+  decidedAt?: unknown;
+  decidedByLogin?: string;
+  decisionNote?: string;
 }
 
 /* ---------- Análise de importação ---------- */

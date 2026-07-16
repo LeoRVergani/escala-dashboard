@@ -1,5 +1,18 @@
 # Histórico de versões
 
+## 1.10.0 — 16/07/2026
+
+- integra Firebase Auth com Microsoft e vínculo por `user_links`;
+- autoriza times por `teams.responsibleLogin`, sem nomes pessoais fixos;
+- permite um responsável administrar vários times pelo mesmo login;
+- publica membros, escalas regulares e plantões em documentos estruturados compatíveis com o KMP;
+- adiciona preview, atualização e substituição controlada de período;
+- separa rascunhos locais por time e período;
+- adiciona solicitações de troca direcionadas por `teamId`;
+- adiciona cadastro simples de times para `system_admin`;
+- adiciona regras e testes isolados no Firebase Emulator;
+- não executa deploy nem publicação automática.
+
 ## 1.9.0 — 16/07/2026
 
 - restaura a navegação horizontal sempre acessível no Planejador SOC;
