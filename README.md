@@ -1,4 +1,10 @@
-# Painel de Escalas 1.7.0
+# Painel de Escalas 1.8.0
+
+## Novidades da 1.8.0
+
+O Planejador SOC usa uma matriz CSS Grid: datas são colunas e Madrugada, Manhã, Tarde, Noite e Situações especiais são cinco linhas compartilhadas. Faixas vazias mantêm espaço, nomes de período ficam fixos à esquerda e qualquer crescimento ocorre na linha completa, preservando o alinhamento horizontal.
+
+O contador consecutivo agora é somente um número discreto no canto inferior direito, sem círculo, fundo, borda ou sombra. Dias 1–6 usam cinza secundário; 7+ mudam apenas cor e peso. O cálculo e os dados operacionais não foram alterados.
 
 ## Novidades da 1.7.0
 
@@ -29,7 +35,7 @@ npm run dev -- --host 0.0.0.0
 | `npm run fixtures` | Regenera as fixtures fictícias sanitizadas |
 | `npm run analyze -- <arquivo>` | Executa o parser da aplicação diretamente em um arquivo real |
 
-Validação desta entrega: **85 testes aprovados**, TypeScript aprovado e build Vite concluído.
+Validação desta entrega: **88 testes aprovados**, TypeScript aprovado e build Vite concluído.
 
 ## Plantão COSI — ciclo operacional 25–26
 

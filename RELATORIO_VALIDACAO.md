@@ -1,4 +1,8 @@
-# Relatório de validação — Painel de Escalas 1.7.0
+# Relatório de validação — Painel de Escalas 1.8.0
+
+## Release 1.8.0
+
+O Planejador foi reorganizado em cinco linhas compartilhadas e alinhadas entre todas as datas. O contador visual perdeu o formato circular e mantém somente número discreto, com atenção por cor/peso em 7+. Firebase permanece desativado.
 
 ## Release 1.7.0
 
@@ -94,7 +98,7 @@ npm run analyze -- '/mnt/data/Escalas Equipe N1(2).xls'
 Resultados:
 
 - TypeScript: aprovado;
-- testes automatizados: **85 de 85 aprovados**;
+- testes automatizados: **88 de 88 aprovados**;
 - build Vite: aprovado;
 - parser SOC real: aprovado;
 - parser Plantão COSI real: aprovado;

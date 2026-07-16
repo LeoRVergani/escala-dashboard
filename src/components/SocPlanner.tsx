@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { SHIFT_BY_ID, SHIFTS } from '../constants';
 import { scheduleDateHeader, scheduleDates } from '../lib/dates';
 import { groupTechniciansByOperationalShift } from '../lib/scheduleGrouping';
@@ -21,6 +21,7 @@ export function SocPlanner({ state, compact, onCompactChange, onMove, onRemove, 
   const groups = useMemo(() => groupTechniciansByOperationalShift(state), [state]);
   const workdayCounters = useMemo(() => calculateConsecutiveWorkdayCounters(state), [state]);
   const [editing, setEditing] = useState<{ technicianId: string; day: number } | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
   const techById = new Map(state.technicians.map((tech) => [tech.id, tech]));
 
   function dragStart(event: React.DragEvent, item: DragItem) {
@@ -29,6 +30,7 @@ export function SocPlanner({ state, compact, onCompactChange, onMove, onRemove, 
   }
   function drop(event: React.DragEvent, day: number, shift: SocShiftId) {
     event.preventDefault();
+    setDropTarget(null);
     const raw = event.dataTransfer.getData('application/x-soc-assignment');
     if (raw) onMove(JSON.parse(raw) as DragItem, day, shift);
   }
@@ -66,28 +68,33 @@ export function SocPlanner({ state, compact, onCompactChange, onMove, onRemove, 
         <span>Período 25–26 · quatro turnos e situações especiais</span>
         <label><input type="checkbox" checked={compact} onChange={(e) => onCompactChange(e.target.checked)} /> Compactar</label>
       </div>
-      <div className="soc-days">
-        {dates.map((date, index) => {
-          const day = index + 1;
-          const head = scheduleDateHeader(date);
-          return <article className="soc-day" key={date}>
-            <header><strong>{head.date}</strong><small>{head.weekday}</small></header>
-            {SOC_SHIFT_IDS.map((shift) => <div className={`soc-lane lane-${shift}`} key={shift} onDragOver={(e) => e.preventDefault()} onDrop={(e) => drop(e, day, shift)}>
-              <b>{SHIFT_BY_ID[shift].label}</b>
+      <div className="soc-schedule-grid" style={{ gridTemplateColumns: `112px repeat(${dates.length}, minmax(145px, 1fr))` }} role="grid" aria-label="Faixas do Planejador SOC">
+        <div className="soc-grid-corner" role="columnheader">Período</div>
+        {dates.map((date) => { const head = scheduleDateHeader(date); return <div className="soc-date-head" role="columnheader" key={date}><strong>{head.date}</strong><small>{head.weekday}</small></div>; })}
+        {[...SOC_SHIFT_IDS, 'special' as const].map((lane) => <Fragment key={lane}>
+          <div className={`soc-row-label lane-${lane}`} role="rowheader">{lane === 'special' ? 'Situações especiais' : SHIFT_BY_ID[lane].label}</div>
+          {dates.map((date, index) => {
+            const day = index + 1;
+            const targetKey = `${lane}:${day}`;
+            const targetShift: SocShiftId = lane === 'special' ? 'manha' : lane;
+            return <div
+              className={`soc-lane lane-${lane}${dropTarget === targetKey ? ' drop-target' : ''}`}
+              role="gridcell"
+              aria-label={`${lane === 'special' ? 'Situações especiais' : SHIFT_BY_ID[lane].label} em ${date.split('-').reverse().join('/')}`}
+              key={date}
+              onDragOver={(e) => { e.preventDefault(); setDropTarget(targetKey); }}
+              onDragLeave={() => setDropTarget((current) => current === targetKey ? null : current)}
+              onDrop={(e) => drop(e, day, targetShift)}
+            >
               {state.technicians.flatMap((tech) => {
                 const value = state.cells[tech.id]?.[day];
-                return value && isShiftAssignment(value) && value.shift === shift ? card(tech.id, day, value) : [];
+                if (!value) return [];
+                if (lane === 'special') return isSpecialStatusAssignment(value) ? card(tech.id, day, value, true) : [];
+                return isShiftAssignment(value) && value.shift === lane ? card(tech.id, day, value) : [];
               })}
-            </div>)}
-            <div className="soc-lane lane-special" onDragOver={(e) => e.preventDefault()} onDrop={(e) => drop(e, day, 'manha')}>
-              <b>Situações especiais</b>
-              {state.technicians.flatMap((tech) => {
-                const value = state.cells[tech.id]?.[day];
-                return value && isSpecialStatusAssignment(value) ? card(tech.id, day, value, true) : [];
-              })}
-            </div>
-          </article>;
-        })}
+            </div>;
+          })}
+        </Fragment>)}
       </div>
     </div>
     {editing && <div className="soc-edit-dialog" role="dialog" aria-label="Editar alocação"><div>
