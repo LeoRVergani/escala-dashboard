@@ -113,9 +113,11 @@ describe('grade de escalas (via App)', () => {
   });
 
   it('mostra alertas de conflito da demonstração', async () => {
-    await renderWithDemo();
+    const { user } = await renderWithDemo();
     const chip = screen.getByRole('button', { name: /alertas/i });
     expect(chip.textContent).toMatch(/Alertas: [1-9]/);
+    await user.click(chip);
+    expect(await screen.findByRole('region', { name: /alertas de conflito/i })).toHaveTextContent(/não bloqueiam a edição/i);
   });
 
   it('mantém a publicação Firebase desativada na interface', async () => {

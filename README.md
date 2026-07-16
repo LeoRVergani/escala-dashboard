@@ -1,4 +1,14 @@
-# Painel de Escalas 1.8.0
+# Painel de Escalas 1.9.0
+
+## Novidades da 1.9.0
+
+O Planejador SOC recupera uma barra horizontal inferior sempre acessível. A matriz possui um único container principal como fonte de `scrollLeft`; uma barra sticky sincronizada acompanha a largura real por `ResizeObserver`, inclusive ao redimensionar a janela ou alternar o modo Compactar. A coluna unificada de colaboradores/períodos e as colunas diárias compactas permanecem inalteradas.
+
+Também é possível segurar o botão do meio sobre a escala e mover o ponteiro horizontalmente. O pan usa Pointer Events, não inicia em controles interativos e não interfere no drag-and-drop com botão esquerdo, roda, touchpad, assignments ou histórico.
+
+Grade e Planejador agora renderizam o mesmo componente de alertas, com a mesma lista e contagem produzidas por `detectConflicts`. O botão **Alertas** abre e navega até o painel da visualização atual; no Planejador, alertas com colaborador e dia localizam o cartão correspondente quando ele existe.
+
+**Firebase permanece desativado na versão 1.9.0.** A posição horizontal é somente visual e não integra rascunho, exportação, payload ou desfazer/refazer.
 
 ## Novidades da 1.8.0
 
@@ -35,7 +45,7 @@ npm run dev -- --host 0.0.0.0
 | `npm run fixtures` | Regenera as fixtures fictícias sanitizadas |
 | `npm run analyze -- <arquivo>` | Executa o parser da aplicação diretamente em um arquivo real |
 
-Validação desta entrega: **88 testes aprovados**, TypeScript aprovado e build Vite concluído.
+Validação desta entrega: **95 testes aprovados**, TypeScript aprovado e build Vite concluído.
 
 ## Plantão COSI — ciclo operacional 25–26
 

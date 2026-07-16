@@ -36,6 +36,7 @@ import { cellKey, ScheduleGrid, type CellKey } from './components/ScheduleGrid';
 import { ImportWizard } from './components/ImportWizard';
 import { OnCallEditor } from './components/OnCallEditor';
 import { SocPlanner } from './components/SocPlanner';
+import { ConflictAlertsPanel } from './components/ConflictAlertsPanel';
 import { moveSocAssignment, removeSocAssignment, updateSocAssignment, type SocShiftId } from './lib/socPlanner';
 
 interface PendingImport {
@@ -76,6 +77,8 @@ export default function App() {
   const [socCompact, setSocCompact] = useState(() => localStorage.getItem('escala-dashboard:soc-compact') === 'true');
   const fileInput = useRef<HTMLInputElement>(null);
   const toastTimer = useRef<number>();
+  const conflictPanelRef = useRef<HTMLElement>(null);
+  const [plannerFocus, setPlannerFocus] = useState<{ technicianId: string; day: number } | null>(null);
 
   const notify = useCallback((msg: string) => {
     setToast(msg);
@@ -107,6 +110,16 @@ export default function App() {
     () => (schedule?.serviceDeskN1 ? mapN1Conflicts(conflicts, schedule, n1Layer) : conflicts),
     [conflicts, schedule, n1Layer],
   );
+
+  useEffect(() => {
+    if (!showConflicts) return;
+    conflictPanelRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  }, [showConflicts, socView]);
+
+  const openConflictPanel = useCallback(() => {
+    setShowConflicts(true);
+    window.requestAnimationFrame(() => conflictPanelRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }));
+  }, []);
 
   /* ---------- Importação ---------- */
 
@@ -658,7 +671,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           Painel de Escalas
-          <small>v1.8.0 · importar → escolher período/bloco → revisar → editar → exportar</small>
+          <small>v1.9.0 · importar → escolher período/bloco → revisar → editar → exportar</small>
         </div>
         {schedule && (
           <>
@@ -710,7 +723,7 @@ export default function App() {
                 <button
                   className={`conflict-chip${conflicts.length ? ' has' : ''}`}
                   aria-pressed={showConflicts}
-                  onClick={() => setShowConflicts((v) => !v)}
+                  onClick={openConflictPanel}
                 >
                   Alertas: {conflicts.length}
                 </button>
@@ -932,27 +945,10 @@ export default function App() {
             } : undefined}
           />
           {showConflicts && (
-            <div className="grid-wrap" style={{ flex: 'none' }}>
-              <section className="conflict-panel" aria-label="Alertas de conflito">
-                <h3>Alertas de conflito (não bloqueiam a edição)</h3>
-                {gridConflicts.length === 0 ? (
-                  <p className="conflict-empty">Nenhum conflito detectado.</p>
-                ) : (
-                  <ul>
-                    {gridConflicts.map((c, i) => (
-                      <li key={i}>
-                        <button
-                          onClick={() => {
-                            if (c.day) setSelection(new Set([cellKey(c.techId, c.day)]));
-                          }}
-                        >
-                          {c.message}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
+            <div className="conflict-panel-wrap">
+              <ConflictAlertsPanel ref={conflictPanelRef} conflicts={gridConflicts} onNavigate={(conflict) => {
+                if (conflict.day) setSelection(new Set([cellKey(conflict.techId, conflict.day)]));
+              }} />
             </div>
           )}
         </>
@@ -964,7 +960,15 @@ export default function App() {
         onMove={(item, day, shift: SocShiftId) => mutate((current) => moveSocAssignment(current, { ...item, toDay: day, shift }))}
         onRemove={(technicianId, day) => mutate((current) => removeSocAssignment(current, technicianId, day))}
         onEdit={(technicianId, day, value) => mutate((current) => updateSocAssignment(current, technicianId, day, value))}
+        focusedCell={plannerFocus}
       />}
+      {schedule && isSoc && socView === 'planner' && showConflicts && (
+        <div className="conflict-panel-wrap">
+          <ConflictAlertsPanel ref={conflictPanelRef} conflicts={gridConflicts} onNavigate={(conflict) => {
+            if (conflict.day) setPlannerFocus({ technicianId: conflict.techId, day: conflict.day });
+          }} />
+        </div>
+      )}
 
       {pending && (
         <ImportWizard

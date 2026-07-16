@@ -1,4 +1,8 @@
-# Relatório de validação — Painel de Escalas 1.8.0
+# Relatório de validação — Painel de Escalas 1.9.0
+
+## Release 1.9.0
+
+O Planejador usa `.soc-planner-main` como fonte única de `scrollLeft`, uma barra inferior sticky sincronizada e pan horizontal pelo botão do meio. Grade e Planejador reutilizam o mesmo painel de conflitos e a mesma lista calculada. Scroll e foco são apenas visuais; assignments, histórico, rascunho, exportação e payload não mudaram. Firebase permanece desativado.
 
 ## Release 1.8.0
 
