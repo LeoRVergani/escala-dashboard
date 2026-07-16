@@ -10,8 +10,8 @@ export interface MemberDocument {
 }
 export interface PeriodDocument {
   id: string; periodId: string; teamId: string; name: string; startDate: string; endDate: string;
-  scheduleType?: string; sourceType: 'DASHBOARD'; status: 'PUBLISHED'; active: true; sourceFileName?: string;
-  sourceSheet?: string; sourceLayout?: string; publishedByLogin: string; publishedByUid: string; schemaVersion: 2;
+  scheduleType?: string; sourceType: 'FIREBASE_DASHBOARD'; status: 'PUBLISHED'; active: true; sourceFileName?: string;
+  sourceSheet?: string; sourceLayout?: string; publishedBy: string; publishedByLogin: string; publishedByUid: string; schemaVersion: 2;
 }
 export interface AssignmentDocument {
   id: string; assignmentId: string; teamId: string; periodId: string; memberId: string; scaleName: string;
@@ -84,9 +84,9 @@ export function buildStructuredPublicationPayload(
   const period: PeriodDocument = {
     id: periodId, periodId, teamId: team.id, name: `${team.name} · ${dates[0]} a ${dates[dates.length - 1]}`,
     startDate: dates[0], endDate: dates[dates.length - 1], ...(kind === 'REGULAR' ? { scheduleType: scheduleType(state) } : {}),
-    sourceType: 'DASHBOARD', status: 'PUBLISHED', active: true, sourceFileName: state.sourceFileName,
+    sourceType: 'FIREBASE_DASHBOARD', status: 'PUBLISHED', active: true, sourceFileName: state.sourceFileName,
     sourceSheet: state.sourceSheet, sourceLayout: state.sourceLayout, publishedByLogin: actor.login,
-    publishedByUid: actor.uid, schemaVersion: 2,
+    publishedBy: actor.login, publishedByUid: actor.uid, schemaVersion: 2,
   };
   const assignments: AssignmentDocument[] = [];
   const onCallAssignments: OnCallAssignmentDocument[] = [];
