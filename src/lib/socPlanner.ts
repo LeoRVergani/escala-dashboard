@@ -1,7 +1,8 @@
 import type { CellValue, ScheduleState } from '../types';
+import { OPERATIONAL_SHIFT_IDS, type OperationalShiftId, isSpecialStatusAssignment } from './assignments';
 
-export const SOC_SHIFT_IDS = ['madrugada', 'manha', 'tarde', 'noite'] as const;
-export type SocShiftId = typeof SOC_SHIFT_IDS[number];
+export const SOC_SHIFT_IDS = OPERATIONAL_SHIFT_IDS;
+export type SocShiftId = OperationalShiftId;
 
 export interface PlannerMove {
   technicianId: string;
@@ -16,7 +17,7 @@ export function moveSocAssignment(state: ScheduleState, move: PlannerMove): Sche
   if (move.fromDay !== undefined && move.fromDay !== move.toDay) delete row[move.fromDay];
   const current = row[move.toDay];
   if (current?.shift === move.shift && move.fromDay === undefined) return state;
-  row[move.toDay] = move.value && !SOC_SHIFT_IDS.includes(move.value.shift as SocShiftId)
+  row[move.toDay] = move.value && isSpecialStatusAssignment(move.value)
     ? move.value
     : { shift: move.shift };
   return { ...state, cells: { ...state.cells, [move.technicianId]: row } };

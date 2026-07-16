@@ -1,10 +1,7 @@
 import { fold } from './normalize';
 import { formatBrDate, parseIsoDate, scheduleDates, workInterval } from './dates';
-import type { Conflict, ScheduleState, ShiftId } from '../types';
-
-const WORK: ReadonlySet<ShiftId> = new Set([
-  'madrugada', 'manha', 'tarde', 'noite', 'plantao', 'comercial', 'extra', 'custom',
-]);
+import type { Conflict, ScheduleState } from '../types';
+import { isWorkAssignment } from './assignments';
 
 function techLabel(t: { login?: string; name?: string }): string {
   return t.name ?? t.login ?? '(sem identificação)';
@@ -66,12 +63,12 @@ function detectN1Conflicts(state: ScheduleState): Conflict[] {
       const current = byDay.get(day);
       const before = byDay.get(day - 1);
       const next = byDay.get(day + 1);
-      const works = Boolean(current && WORK.has(current.value.shift));
+      const works = Boolean(current && isWorkAssignment(current.value));
 
       if (
         current?.value.shift === 'ferias' &&
-        before && WORK.has(before.value.shift) &&
-        next && WORK.has(next.value.shift)
+        before && isWorkAssignment(before.value) &&
+        next && isWorkAssignment(next.value)
       ) {
         conflicts.push({
           kind: 'ferias-interrompidas',
@@ -159,7 +156,7 @@ export function detectConflicts(state: ScheduleState): Conflict[] {
       const next = row[index + 1];
       const before = row[index - 1];
 
-      if (current?.shift === 'ferias' && before && WORK.has(before.shift) && next && WORK.has(next.shift)) {
+      if (current?.shift === 'ferias' && isWorkAssignment(before) && isWorkAssignment(next)) {
         conflicts.push({
           kind: 'ferias-interrompidas',
           techId: technician.id,
@@ -168,7 +165,7 @@ export function detectConflicts(state: ScheduleState): Conflict[] {
         });
       }
 
-      if (current && WORK.has(current.shift)) {
+      if (current && isWorkAssignment(current)) {
         streak = consecutiveDates(previousWorkDate, date) ? streak + 1 : 1;
         previousWorkDate = date;
         if (streak === 7) {

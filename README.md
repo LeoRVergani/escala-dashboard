@@ -1,4 +1,10 @@
-# Painel de Escalas 1.6.0
+# Painel de Escalas 1.7.0
+
+## Novidades da 1.7.0
+
+O Planejador SOC separa os quatro turnos da área **Situações especiais**. Férias, Folga, Afastamento e os demais códigos não operacionais deixam de ocupar uma faixa de turno. Cartões e faixas usam as mesmas famílias de cores da Grade, conforme o assignment real do dia.
+
+A Grade e o Planejador exibem um badge derivado com a posição do dia na sequência trabalhada. Mudanças de turno não reiniciam a sequência; Folga, Férias, Afastamento e dias vazios reiniciam. Valores 7 ou maiores recebem destaque e continuam alimentando o alerta existente. O badge não altera rascunho, exportação ou payload.
 
 ## Escala SOC — Grade e Planejador
 
@@ -23,7 +29,7 @@ npm run dev -- --host 0.0.0.0
 | `npm run fixtures` | Regenera as fixtures fictícias sanitizadas |
 | `npm run analyze -- <arquivo>` | Executa o parser da aplicação diretamente em um arquivo real |
 
-Validação desta entrega: **77 testes aprovados**, TypeScript aprovado e build Vite concluído.
+Validação desta entrega: **85 testes aprovados**, TypeScript aprovado e build Vite concluído.
 
 ## Plantão COSI — ciclo operacional 25–26
 
@@ -151,7 +157,9 @@ src/lib/exporter.ts               exportações
 src/components/OnCallEditor.tsx   calendário e editor de plantões
 src/components/ScheduleGrid.tsx   grade SOC/N1 e cabeçalhos entre meses
 src/lib/serviceDeskN1.ts          vínculo das duas visões N1
-tests/                            77 testes automatizados
+src/lib/assignments.ts            classificação e sequência de trabalho derivada
+src/components/SocPlanner.tsx     Planejador SOC e situações especiais
+tests/                            testes automatizados
 scripts/analyze-file.mjs          análise direta dos arquivos
 ```
 

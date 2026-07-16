@@ -1,4 +1,8 @@
-# Relatório de validação — Painel de Escalas 1.6.0
+# Relatório de validação — Painel de Escalas 1.7.0
+
+## Release 1.7.0
+
+Situações especiais foram retiradas das faixas de turno do Planejador. Cartões usam a cor do assignment diário e Grade/Planejador compartilham contadores derivados de dias consecutivos, com alerta visual a partir do sétimo dia. Firebase permanece desativado.
 
 ## Release 1.6.0
 
@@ -90,7 +94,7 @@ npm run analyze -- '/mnt/data/Escalas Equipe N1(2).xls'
 Resultados:
 
 - TypeScript: aprovado;
-- testes automatizados: **77 de 77 aprovados**;
+- testes automatizados: **85 de 85 aprovados**;
 - build Vite: aprovado;
 - parser SOC real: aprovado;
 - parser Plantão COSI real: aprovado;

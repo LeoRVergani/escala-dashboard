@@ -3,6 +3,7 @@ import { SHIFT_BY_ID, SHIFTS } from '../constants';
 import { scheduleDateHeader, scheduleDates } from '../lib/dates';
 import { groupTechniciansByOperationalShift } from '../lib/scheduleGrouping';
 import { SOC_SHIFT_IDS, type SocShiftId } from '../lib/socPlanner';
+import { calculateConsecutiveWorkdayCounters, isShiftAssignment, isSpecialStatusAssignment } from '../lib/assignments';
 import type { CellValue, ScheduleState, ShiftId } from '../types';
 
 type DragItem = { technicianId: string; fromDay?: number; value?: CellValue };
@@ -18,6 +19,7 @@ interface Props {
 export function SocPlanner({ state, compact, onCompactChange, onMove, onRemove, onEdit }: Props) {
   const dates = useMemo(() => scheduleDates(state), [state]);
   const groups = useMemo(() => groupTechniciansByOperationalShift(state), [state]);
+  const workdayCounters = useMemo(() => calculateConsecutiveWorkdayCounters(state), [state]);
   const [editing, setEditing] = useState<{ technicianId: string; day: number } | null>(null);
   const techById = new Map(state.technicians.map((tech) => [tech.id, tech]));
 
@@ -29,6 +31,24 @@ export function SocPlanner({ state, compact, onCompactChange, onMove, onRemove, 
     event.preventDefault();
     const raw = event.dataTransfer.getData('application/x-soc-assignment');
     if (raw) onMove(JSON.parse(raw) as DragItem, day, shift);
+  }
+
+  function card(techId: string, day: number, value: CellValue, special = false) {
+    const tech = techById.get(techId);
+    const counter = workdayCounters[techId]?.[day];
+    const label = value.text ?? SHIFT_BY_ID[value.shift].label;
+    return <div
+      className={`soc-card shift-${value.shift}${special ? ' special' : ''}`}
+      style={{ ['--card-bg' as string]: `var(--sh-${value.shift}-bg)`, ['--card-fg' as string]: `var(--sh-${value.shift}-fg)` }}
+      key={`${techId}-${value.shift}`}
+      draggable
+      onDragStart={(e) => dragStart(e, { technicianId: techId, fromDay: day, value })}
+      onDoubleClick={() => setEditing({ technicianId: techId, day })}
+    >
+      <strong>{tech?.name ?? tech?.login ?? techId}</strong><small>{label}</small>
+      <span className="soc-card-actions"><button title="Editar" onClick={() => setEditing({ technicianId: techId, day })}>✎</button><button title="Remover" onClick={() => onRemove(techId, day)}>×</button></span>
+      {counter && !special && <em className={`workday-counter${counter >= 7 ? ' alert' : ''}`} title={`${counter}º dia consecutivo de trabalho`}>{counter}</em>}
+    </div>;
   }
 
   return <section className={`soc-planner${compact ? ' compact' : ''}`} aria-label="Planejador SOC">
@@ -43,7 +63,7 @@ export function SocPlanner({ state, compact, onCompactChange, onMove, onRemove, 
     </aside>
     <div className="soc-planner-main">
       <div className="soc-planner-controls">
-        <span>Período 25–26 · quatro áreas por dia</span>
+        <span>Período 25–26 · quatro turnos e situações especiais</span>
         <label><input type="checkbox" checked={compact} onChange={(e) => onCompactChange(e.target.checked)} /> Compactar</label>
       </div>
       <div className="soc-days">
@@ -56,15 +76,16 @@ export function SocPlanner({ state, compact, onCompactChange, onMove, onRemove, 
               <b>{SHIFT_BY_ID[shift].label}</b>
               {state.technicians.flatMap((tech) => {
                 const value = state.cells[tech.id]?.[day];
-                if (!value || (value.shift !== shift && SOC_SHIFT_IDS.includes(value.shift as SocShiftId))) return [];
-                if (!SOC_SHIFT_IDS.includes(value.shift as SocShiftId) && shift !== 'manha') return [];
-                const special = !SOC_SHIFT_IDS.includes(value.shift as SocShiftId);
-                return <div className={`soc-card${special ? ' special' : ''}`} key={tech.id} draggable onDragStart={(e) => dragStart(e, { technicianId: tech.id, fromDay: day, value })} onDoubleClick={() => setEditing({ technicianId: tech.id, day })}>
-                  <strong>{tech.name ?? tech.login ?? tech.id}</strong><small>{special ? (value.text ?? SHIFT_BY_ID[value.shift].label) : SHIFT_BY_ID[shift].label}</small>
-                  <span><button title="Editar" onClick={() => setEditing({ technicianId: tech.id, day })}>✎</button><button title="Remover" onClick={() => onRemove(tech.id, day)}>×</button></span>
-                </div>;
+                return value && isShiftAssignment(value) && value.shift === shift ? card(tech.id, day, value) : [];
               })}
             </div>)}
+            <div className="soc-lane lane-special" onDragOver={(e) => e.preventDefault()} onDrop={(e) => drop(e, day, 'manha')}>
+              <b>Situações especiais</b>
+              {state.technicians.flatMap((tech) => {
+                const value = state.cells[tech.id]?.[day];
+                return value && isSpecialStatusAssignment(value) ? card(tech.id, day, value, true) : [];
+              })}
+            </div>
           </article>;
         })}
       </div>

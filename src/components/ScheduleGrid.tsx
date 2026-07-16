@@ -19,6 +19,7 @@ import type {
   Technician,
 } from '../types';
 import { CellMenu } from './CellMenu';
+import { calculateConsecutiveWorkdayCounters } from '../lib/assignments';
 
 export type CellKey = `${string}:${number}`;
 export const cellKey = (techId: string, day: number): CellKey => `${techId}:${day}`;
@@ -84,6 +85,10 @@ export function ScheduleGrid(props: Props) {
   const anchorRef = useRef<CellKey | null>(null);
 
   const operationalGrouping = state.visualGrouping === 'operational-shift' && !props.serviceDeskN1;
+  const workdayCounters = useMemo(
+    () => operationalGrouping ? calculateConsecutiveWorkdayCounters(state) : {},
+    [operationalGrouping, state],
+  );
   const operationalGroups = useMemo(
     () => (operationalGrouping ? groupTechniciansByOperationalShift(state) : []),
     [operationalGrouping, state],
@@ -208,6 +213,7 @@ export function ScheduleGrid(props: Props) {
         }
       : undefined;
     const label = v ? (v.shift === 'custom' ? (v.text ?? '*') : SHIFT_BY_ID[v.shift].code) : '';
+    const workdayCounter = workdayCounters[t.id]?.[d];
     const n1Definition = props.serviceDeskN1 && v?.text
       ? props.serviceDeskN1.legend.find((item) => item.code === v.text?.toUpperCase())
       : undefined;
@@ -224,7 +230,7 @@ export function ScheduleGrid(props: Props) {
           type="button"
           className={classes.join(' ')}
           style={style}
-          title={title}
+          title={workdayCounter ? `${title} · ${workdayCounter}º dia consecutivo de trabalho` : title}
           aria-label={`Dia ${parseIsoDate(dateList[d - 1]).getDate()}, ${t.name ?? t.login ?? 'técnico'}: ${title} (${dateList[d - 1]})`}
           draggable
           onDragStart={(e) => onDragStart(e, t.id, d)}
@@ -236,7 +242,8 @@ export function ScheduleGrid(props: Props) {
           onDrop={(e) => onDrop(e, t.id, d)}
           onClick={(e) => handleCellClick(e, t.id, d)}
         >
-          {label}
+          <span className="cell-code">{label}</span>
+          {workdayCounter && <span className={`workday-counter${workdayCounter >= 7 ? ' alert' : ''}`} aria-label={`${workdayCounter}º dia consecutivo de trabalho`}>{workdayCounter}</span>}
         </button>
       </td>
     );
