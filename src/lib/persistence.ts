@@ -15,7 +15,7 @@ export interface PeriodDocument {
 }
 export interface AssignmentDocument {
   id: string; assignmentId: string; teamId: string; periodId: string; memberId: string; scaleName: string;
-  date: string; assignmentType: 'WORK_SHIFT' | 'OFF' | 'VACATION' | 'STATUS'; shiftCode?: string;
+  date: string; assignmentType: 'WORK_SHIFT' | 'OFF' | 'VACATION'; shiftCode?: string;
   shiftId?: string; shiftName?: string; statusCode?: string; customText?: string; source: 'DASHBOARD';
   updatedByLogin: string; schemaVersion: 2;
 }
@@ -99,7 +99,10 @@ export function buildStructuredPublicationPayload(
         if (!value) continue;
         const shift = SHIFT_BY_ID[value.shift];
         const work = isShiftAssignment(value);
-        const assignmentType = work ? 'WORK_SHIFT' : value.shift === 'folga' ? 'OFF' : value.shift === 'ferias' ? 'VACATION' : 'STATUS';
+        // O leitor KMP atual aceita somente WORK_SHIFT, OFF e VACATION.
+        // Outros status continuam preservados em statusCode/customText e usam
+        // OFF como fallback legado não trabalhado até o KMP ampliar o enum.
+        const assignmentType = work ? 'WORK_SHIFT' : value.shift === 'ferias' ? 'VACATION' : 'OFF';
         const id = `${periodId}-${member.id}-${dates[index]}`;
         assignments.push({
           id, assignmentId: id, teamId: team.id, periodId, memberId: member.id, scaleName: member.displayName,

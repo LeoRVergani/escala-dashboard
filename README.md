@@ -53,7 +53,7 @@ npm run dev -- --host 0.0.0.0
 | `npm run fixtures` | Regenera as fixtures fictícias sanitizadas |
 | `npm run analyze -- <arquivo>` | Executa o parser da aplicação diretamente em um arquivo real |
 
-Validação desta entrega: **109 testes Vitest e 7 testes de Firestore Rules aprovados**, TypeScript aprovado e build Vite concluído.
+Validação desta entrega: **110 testes Vitest e 7 testes de Firestore Rules aprovados**, TypeScript aprovado e build Vite concluído.
 
 ## Plantão COSI — ciclo operacional 25–26
 

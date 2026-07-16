@@ -28,6 +28,7 @@ export async function saveTeam(user: AuthenticatedDashboardUser, team: Team): Pr
     ...team,
     id,
     teamId: id,
+    teamName: team.name,
     responsibleLogin: normalizeLogin(team.responsibleLogin),
     schemaVersion: 2,
     updatedAt: serverTimestamp(),
