@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.env.*
+*.log
+
+# Arquivos reais usados apenas na validação local; não versionar.
+/Escalas Equipe N1*.xls
+/Escala-SOC-Controle-Julho*.xls
+/Escala-SOC-Controle-Julho*.xlsx
+/Relatorio-PlantaoCOSI*.xls
+/Relatorio-PlantaoCOSI*.xlsx
