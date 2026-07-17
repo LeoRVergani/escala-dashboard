@@ -6,6 +6,7 @@ import type { AuthenticatedDashboardUser, Conflict, ScheduleState, Team } from '
 
 export interface PublicationPreview {
   payload: ReturnType<typeof buildStructuredPublicationPayload>;
+  sourceOrigin?: ScheduleState['origin'];
   existingPeriod: boolean;
   existingAssignments: number;
   alerts: number;
@@ -17,6 +18,7 @@ export function publicationCriticalErrors(state: ScheduleState, team: Team, user
   const errors: string[] = [];
   if (!canManageTeam(user, team)) errors.push('Usuário não autorizado para este time.');
   if (state.isDemo) errors.push('Escalas de demonstração não podem ser publicadas.');
+  if (state.origin === 'demo-template') errors.push('Dados do Test Drive não podem ser publicados no Firebase.');
   if (!state.technicians.length) errors.push('A escala não possui técnicos.');
   if (!payload.assignments.length && !payload.onCallAssignments.length) errors.push('A escala não possui registros publicáveis.');
   return errors;
@@ -34,5 +36,5 @@ export async function buildPublicationPreview(state: ScheduleState, team: Team, 
     getDoc(doc(services.db, periodCollection, payload.period.id)),
     getCountFromServer(query(collection(services.db, assignmentCollection), where('teamId', '==', team.id), where('periodId', '==', payload.period.id))),
   ]);
-  return { payload, existingPeriod: period.exists(), existingAssignments: assignmentCount.data().count, alerts: conflicts.length, criticalErrors, layoutWarning };
+  return { payload, sourceOrigin: state.origin, existingPeriod: period.exists(), existingAssignments: assignmentCount.data().count, alerts: conflicts.length, criticalErrors, layoutWarning };
 }

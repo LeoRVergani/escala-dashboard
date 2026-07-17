@@ -97,6 +97,7 @@ export interface ScheduleState {
   onCallRecords?: OnCallRecord[];
   sourceLabel?: string;
   isDemo?: boolean;
+  origin?: 'import' | 'empty-template' | 'demo-template' | 'manual';
   /** Organiza os colaboradores por turno predominante no período (uso do SOC). */
   visualGrouping?: 'operational-shift';
   /** Metadados e segunda grade específicos da Equipe Técnicos de TI N1. */
@@ -105,6 +106,21 @@ export interface ScheduleState {
   sourceFileName?: string;
   sourceSheet?: string;
   sourceLayout?: SheetLayout;
+}
+
+export type ScheduleTemplateKind = 'plantao-cosi' | 'soc-noc-6x1' | 'service-desk-n1-6x1';
+
+export interface ScheduleTemplateDefinition {
+  kind: ScheduleTemplateKind;
+  label: string;
+  shortLabel: string;
+  description: string;
+  /** SOC e COSI usam o ciclo operacional 25->26 (cycle25To26); N1 usa mês civil. */
+  periodStrategy: 'cycle-25-26' | 'calendar-month';
+  viewType: NonNullable<ScheduleState['viewType']>;
+  visualGrouping?: NonNullable<ScheduleState['visualGrouping']>;
+  serviceDeskN1: boolean;
+  allowedShiftCodes: string[];
 }
 
 /* ---------- Integração Escala ICI / Firebase ---------- */

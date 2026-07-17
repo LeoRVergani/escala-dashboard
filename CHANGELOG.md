@@ -1,5 +1,17 @@
 # Histórico de versões
 
+## 1.11.0 — 16/07/2026
+
+- adiciona assistente inicial compartilhado para escala vazia e Test Drive;
+- centraliza os tipos Plantão COSI, SOC/NOC 6x1 e Service Desk N1 6x1 em catálogo;
+- cria demos fictícias locais para COSI, SOC/NOC e Service Desk N1;
+- isola Test Drive em `localStorage` próprio, sem tocar o rascunho real;
+- adiciona banner e ação para encerrar Test Drive apagando só dados fictícios;
+- bloqueia publicação de Test Drive no preview e na camada de escrita;
+- inclui aviso de dados fictícios apenas na exportação de Test Drive;
+- pede confirmação antes de sobrescrever rascunho ou Test Drive salvo;
+- preserva editores existentes e fluxo Firebase/Auth/times da 1.10.0.
+
 ## 1.10.0 — 16/07/2026
 
 - integra Firebase Auth com Microsoft e vínculo por `user_links`;

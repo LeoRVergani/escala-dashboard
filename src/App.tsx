@@ -6,7 +6,6 @@ import {
   N1_PRIMARY_CODES,
   SHIFTS,
 } from './constants';
-import { makeDemoSchedule } from './demo/demoData';
 import { detectConflicts } from './lib/conflicts';
 import { exportScheduleFile } from './lib/exporter';
 import { useHistory } from './lib/history';
@@ -14,6 +13,7 @@ import { cycle25To26, periodLabel, scheduleDates } from './lib/dates';
 import { autoFillOperationalCycle, moveOnCallRecord as moveOnCallRecordToDate, startsInOperationalCycle } from './lib/onCall';
 import { analyzeWorkbook, buildSchedule, newTechId, readWorkbook } from './lib/parser';
 import { clearDraft, loadDraft, saveDraft } from './lib/storage';
+import { endTestDrive, loadTestDriveSession, saveTestDriveSession } from './lib/testDrive';
 import {
   mapN1Conflicts,
   n1CellValue,
@@ -34,6 +34,7 @@ import type {
 } from './types';
 import { cellKey, ScheduleGrid, type CellKey } from './components/ScheduleGrid';
 import { ImportWizard } from './components/ImportWizard';
+import { ScheduleTemplateWizard } from './components/ScheduleTemplateWizard';
 import { OnCallEditor } from './components/OnCallEditor';
 import { SocPlanner } from './components/SocPlanner';
 import { ConflictAlertsPanel } from './components/ConflictAlertsPanel';
@@ -85,6 +86,7 @@ export default function App() {
   const [showConflicts, setShowConflicts] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [draftAvailable, setDraftAvailable] = useState(() => loadDraft() !== null);
+  const [testDriveAvailable, setTestDriveAvailable] = useState(() => loadTestDriveSession() !== null);
   const [socView, setSocView] = useState<'grid' | 'planner'>(() => localStorage.getItem('escala-dashboard:soc-view') === 'planner' ? 'planner' : 'grid');
   const [socCompact, setSocCompact] = useState(() => localStorage.getItem('escala-dashboard:soc-compact') === 'true');
   const fileInput = useRef<HTMLInputElement>(null);
@@ -95,6 +97,7 @@ export default function App() {
   const [swapRequests, setSwapRequests] = useState<ShiftSwapRequest[] | null>(null);
   const [showTeamDialog, setShowTeamDialog] = useState(false);
   const [firebaseBusy, setFirebaseBusy] = useState(false);
+  const [templateWizardMode, setTemplateWizardMode] = useState<'empty' | 'demo' | null>(null);
 
   const notify = useCallback((msg: string) => {
     setToast(msg);
@@ -646,7 +649,13 @@ export default function App() {
 
   useEffect(() => {
     if (!schedule) return;
-    const id = window.setTimeout(() => saveDraft(schedule, firebaseDashboard.selectedTeamId || undefined), 800);
+    const id = window.setTimeout(() => {
+      if (schedule.origin === 'demo-template') {
+        saveTestDriveSession(schedule);
+      } else {
+        saveDraft(schedule, firebaseDashboard.selectedTeamId || undefined);
+      }
+    }, 800);
     return () => window.clearTimeout(id);
   }, [schedule, firebaseDashboard.selectedTeamId]);
 
@@ -762,9 +771,15 @@ export default function App() {
               <button
                 className="btn"
                 onClick={() => {
-                  saveDraft(schedule, firebaseDashboard.selectedTeamId || undefined);
-                  setDraftAvailable(true);
-                  notify('Rascunho salvo neste navegador.');
+                  if (schedule.origin === 'demo-template') {
+                    saveTestDriveSession(schedule);
+                    setTestDriveAvailable(true);
+                    notify('Test Drive salvo neste navegador.');
+                  } else {
+                    saveDraft(schedule, firebaseDashboard.selectedTeamId || undefined);
+                    setDraftAvailable(true);
+                    notify('Rascunho salvo neste navegador.');
+                  }
                 }}
               >
                 Salvar rascunho
@@ -799,11 +814,40 @@ export default function App() {
         onLogin={() => { firebaseDashboard.setError(null); void signInWithMicrosoft().catch((error) => firebaseDashboard.setError((error as Error).message)); }}
         onLogout={() => void signOutDashboard().catch((error) => firebaseDashboard.setError((error as Error).message))}
         onImport={() => fileInput.current?.click()}
-        onSaveDraft={() => { if (schedule && firebaseDashboard.selectedTeam) { saveDraft(schedule, firebaseDashboard.selectedTeam.id); setDraftAvailable(true); notify(`Rascunho salvo para ${firebaseDashboard.selectedTeam.name}.`); } }}
+        onSaveDraft={() => {
+          if (schedule?.origin === 'demo-template') {
+            saveTestDriveSession(schedule);
+            setTestDriveAvailable(true);
+            notify('Test Drive salvo neste navegador.');
+          } else if (schedule && firebaseDashboard.selectedTeam) {
+            saveDraft(schedule, firebaseDashboard.selectedTeam.id);
+            setDraftAvailable(true);
+            notify(`Rascunho salvo para ${firebaseDashboard.selectedTeam.name}.`);
+          }
+        }}
         onPublish={() => void openPublication()}
         onSwaps={() => void openSwaps()}
         onManageTeams={() => setShowTeamDialog(true)}
       />
+
+      {schedule && schedule.origin === 'demo-template' && (
+        <div className="n1-modebar" role="status">
+          <div>
+            <strong>Test Drive — dados fictícios salvos somente neste navegador</strong>
+          </div>
+          <button
+            className="btn"
+            onClick={() => {
+              endTestDrive();
+              history.reset(null);
+              setTestDriveAvailable(false);
+              notify('Dados fictícios do Test Drive apagados.');
+            }}
+          >
+            Encerrar Test Drive e apagar dados locais
+          </button>
+        </div>
+      )}
 
       {schedule?.serviceDeskN1 && schedule.viewType !== 'oncall' && (
         <div className="n1-modebar" aria-label="Visualização Service Desk N1">
@@ -918,31 +962,15 @@ export default function App() {
               </button>
               <button
                 className="btn"
-                onClick={() => {
-                  history.reset(makeDemoSchedule());
-                  notify('Demonstração carregada — todos os dados são fictícios.');
-                }}
+                onClick={() => setTemplateWizardMode('demo')}
               >
-                Carregar demonstração (dados fictícios)
+                Test Drive — dados fictícios locais
               </button>
               <button
                 className="btn"
-                onClick={() => {
-                  const now = new Date();
-                  const monthKey = { year: now.getFullYear(), month: now.getMonth() + 1 };
-                  history.reset({
-                    monthKey,
-                    technicians: [],
-                    cells: {},
-                    dates: cycle25To26(monthKey).dates,
-                    viewType: 'oncall',
-                    onCallRecords: [],
-                    sourceLabel: 'Escala de plantão criada no dashboard',
-                  });
-                  notify('Escala vazia de plantão criada. Adicione os nomes e monte o rodízio.');
-                }}
+                onClick={() => setTemplateWizardMode('empty')}
               >
-                Criar escala vazia de plantão
+                Criar escala vazia
               </button>
               {draftAvailable && (
                 <button
@@ -961,12 +989,62 @@ export default function App() {
                   Continuar rascunho salvo
                 </button>
               )}
+              {testDriveAvailable && (
+                <button
+                  className="btn"
+                  onClick={() => {
+                    const session = loadTestDriveSession();
+                    if (session) {
+                      history.reset(session.state);
+                      notify(`Test Drive de ${new Date(session.savedAt).toLocaleString('pt-BR')} restaurado.`);
+                    } else {
+                      setTestDriveAvailable(false);
+                      notify('Nenhum Test Drive válido encontrado.');
+                    }
+                  }}
+                >
+                  Continuar Test Drive
+                </button>
+              )}
             </div>
             <div className="flow">
               Importar arquivo → escolher período/bloco → revisar → editar → salvar ou exportar
             </div>
           </div>
         </main>
+      )}
+
+      {templateWizardMode && (
+        <ScheduleTemplateWizard
+          mode={templateWizardMode}
+          onCancel={() => setTemplateWizardMode(null)}
+          onConfirm={(state) => {
+            if (
+              templateWizardMode === 'empty'
+              && draftAvailable
+              && !window.confirm('Já existe um rascunho salvo. Criar uma nova escala vazia pode sobrescrevê-lo. Deseja continuar?')
+            ) {
+              return;
+            }
+            if (
+              templateWizardMode === 'demo'
+              && testDriveAvailable
+              && !window.confirm('Já existe um Test Drive salvo. Iniciar um novo vai sobrescrevê-lo. Deseja continuar?')
+            ) {
+              return;
+            }
+            history.reset(state);
+            setN1Layer('principal');
+            setSelection(new Set());
+            setClipboard(null);
+            setTemplateWizardMode(null);
+            notify(
+              state.isDemo
+                ? 'Test Drive carregado — dados fictícios locais.'
+                : 'Escala vazia criada. Complete os dados no editor.',
+            );
+          }}
+        />
       )}
 
       {schedule && schedule.viewType === 'oncall' && (
@@ -1071,9 +1149,15 @@ export default function App() {
             className="icon-btn"
             style={{ fontSize: 11 }}
             onClick={() => {
-              clearDraft(schedule, firebaseDashboard.selectedTeamId || undefined);
-              setDraftAvailable(false);
-              notify('Rascunho local apagado.');
+              if (schedule.origin === 'demo-template') {
+                endTestDrive();
+                setTestDriveAvailable(false);
+                notify('Dados fictícios do Test Drive apagados.');
+              } else {
+                clearDraft(schedule, firebaseDashboard.selectedTeamId || undefined);
+                setDraftAvailable(false);
+                notify('Rascunho local apagado.');
+              }
             }}
           >
             apagar rascunho

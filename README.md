@@ -1,4 +1,18 @@
-# Painel de Escalas 1.10.0
+# Painel de Escalas 1.11.0
+
+## Novidades da 1.11.0
+
+A tela inicial agora usa um assistente único para criar uma escala vazia ou iniciar um Test Drive. Os dois caminhos partem do mesmo catálogo central de tipos, com Plantão COSI, SOC/NOC — Escala 6x1 e Service Desk N1 — Escala 6x1, mantendo período, visão e turnos permitidos em uma única fonte de verdade.
+
+O Test Drive cria três demonstrações fictícias locais. O Plantão COSI gera plantonistas e plantões no ciclo operacional 25–26; SOC/NOC monta uma escala 6x1 por turnos operacionais, com folgas e algumas situações especiais fictícias; Service Desk N1 usa mês civil, a distribuição por Madrugada, Manhã, Tarde e Noite, códigos próprios como M1–M4 e a visão vinculada de e-mail/garantia.
+
+Os dados de Test Drive ficam 100% locais, em uma chave própria de `localStorage`, sem tocar o rascunho real. A tela mostra um banner visível de dados fictícios e a ação de encerrar apaga apenas essa sessão local. Se já existir rascunho ou Test Drive salvo, o app pergunta antes de criar uma nova escala vazia ou uma nova demonstração que possa sobrescrever os dados anteriores.
+
+A publicação de Test Drive é bloqueada em duas camadas: o preview marca a escala como inválida para publicação e a camada de escrita recusa o envio mesmo se o botão for contornado. A exportação de escalas de Test Drive inclui um aviso de dados fictícios na planilha; escalas importadas ou criadas vazias não recebem esse aviso.
+
+Todos os editores existentes continuam os mesmos: Grade/Planejador SOC, Service Desk N1 e Plantão COSI não foram duplicados nem recriados. Esta fase também não mexeu no fluxo de autenticação, times ou Firebase da versão 1.10.0, que permanece exatamente como estava.
+
+Validação desta entrega: **128 testes Vitest aprovados em 13 arquivos**; TypeScript e build de produção também validados.
 
 ## Novidades da 1.10.0
 
@@ -178,7 +192,11 @@ src/lib/dates.ts                  datas e ciclo operacional 25–26
 src/lib/onCall.ts                 regra COSI, contabilidade e autocompletar
 src/lib/conflicts.ts              alertas de sequência e descanso
 src/lib/exporter.ts               exportações
+src/lib/scheduleCatalog.ts        catálogo central de tipos de escala
+src/lib/scheduleFactories.ts      criação determinística de escalas vazias e Test Drive
+src/lib/testDrive.ts              sessão local isolada do Test Drive
 src/components/OnCallEditor.tsx   calendário e editor de plantões
+src/components/ScheduleTemplateWizard.tsx assistente de criação por tipo
 src/components/ScheduleGrid.tsx   grade SOC/N1 e cabeçalhos entre meses
 src/lib/serviceDeskN1.ts          vínculo das duas visões N1
 src/lib/assignments.ts            classificação e sequência de trabalho derivada

@@ -13,6 +13,15 @@ import type { ScheduleState } from '../types';
 
 export function scheduleToWorkbook(state: ScheduleState): XLSX.WorkBook {
   const wb = XLSX.utils.book_new();
+  if (state.origin === 'demo-template') {
+    const warning = XLSX.utils.aoa_to_sheet([
+      ['Aviso sobre dados fictícios'],
+      [],
+      ['Este arquivo contém dados fictícios gerados no Test Drive do dashboard, incluindo colaboradores, matrículas e horários inventados. Não representa pessoas ou escalas reais.'],
+    ]);
+    warning['!cols'] = [{ wch: 120 }];
+    XLSX.utils.book_append_sheet(wb, warning, 'Aviso');
+  }
   if (state.viewType === 'oncall') {
     const records = state.onCallRecords ?? [];
     const rows = records.map((record) => [

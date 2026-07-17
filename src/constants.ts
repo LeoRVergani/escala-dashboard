@@ -31,6 +31,7 @@ export const MONTHS_PT_TITLE = MONTHS_PT.map(
 export const WEEKDAY_ABBREVIATIONS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'] as const;
 
 export const DRAFT_STORAGE_KEY = 'escala-dashboard:rascunho:v1';
+export const TEST_DRIVE_STORAGE_KEY = 'escala-dashboard:test-drive:v1';
 
 export interface N1CodeDef {
   code: string;

@@ -29,6 +29,7 @@ async function commitDocuments<T extends { id: string }>(db: Firestore, collecti
 }
 
 export async function publishStructuredSchedule(preview: PublicationPreview, mode: PublicationMode): Promise<void> {
+  if (preview.sourceOrigin === 'demo-template') throw new Error('Dados do Test Drive não podem ser publicados no Firebase.');
   if (preview.criticalErrors.length) throw new Error(preview.criticalErrors.join(' '));
   const services = firebaseServices();
   if (!services?.auth.currentUser) throw new Error('Usuário não autenticado.');

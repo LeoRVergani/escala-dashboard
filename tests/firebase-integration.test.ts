@@ -1,11 +1,31 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { buildStructuredPublicationPayload, deterministicMemberId, deterministicPeriodId } from '../src/lib/persistence';
 import { publicationCriticalErrors } from '../src/lib/publicationPreview';
-import { publicationOperationSummary } from '../src/lib/schedulePublishRepository';
+import { publicationOperationSummary, publishStructuredSchedule } from '../src/lib/schedulePublishRepository';
 import { filterRequestsForManagedTeams } from '../src/lib/swapRequestsRepository';
 import { canManageTeam, filterManagedTeams } from '../src/lib/teamsRepository';
 import { normalizeLogin } from '../src/lib/authRepository';
 import type { AuthenticatedDashboardUser, ScheduleState, ShiftSwapRequest, Team } from '../src/types';
+
+vi.mock('firebase/firestore', () => ({
+  collection: vi.fn((_db: unknown, collectionName: string) => ({ collectionName })),
+  doc: vi.fn((_db: unknown, collectionName: string, id: string) => ({ collectionName, id })),
+  getCountFromServer: vi.fn(),
+  getDoc: vi.fn(),
+  getDocs: vi.fn(() => Promise.resolve({ docs: [] })),
+  query: vi.fn((collectionReference: unknown) => collectionReference),
+  serverTimestamp: vi.fn(() => 'server-timestamp'),
+  where: vi.fn((field: string, operator: string, value: unknown) => ({ field, operator, value })),
+  writeBatch: vi.fn(() => ({ set: vi.fn(), delete: vi.fn(), commit: vi.fn(() => Promise.resolve()) })),
+}));
+
+vi.mock('../src/lib/firebase', () => ({
+  firebaseServices: vi.fn(() => ({ auth: { currentUser: { uid: 'uid-responsavel.login' } }, db: {} })),
+}));
+
+vi.mock('../src/lib/membersRepository', () => ({
+  upsertMembers: vi.fn(() => Promise.resolve()),
+}));
 
 const user = (login = 'responsavel.login', admin = false): AuthenticatedDashboardUser => ({ uid: `uid-${login}`, login, isSystemAdmin: admin, link: { firebaseUid: `uid-${login}`, login, active: true } });
 const team = (id: string, responsibleLogin = 'responsavel.login', scheduleKind: Team['scheduleKind'] = 'REGULAR'): Team => ({ id, code: id.toUpperCase(), name: id, responsibleLogin, scheduleKind, active: true, allowedImportLayouts: scheduleKind === 'ON_CALL' ? ['oncall'] : ['soc-daily', 'soc-escalistas', 'n1', 'matrix'] });
@@ -28,7 +48,10 @@ describe('payload estruturado e determinístico', () => {
   it('não duplica técnico nem assignment com a mesma identidade', () => { const state = regularState(); state.technicians.push({ id: 'duplicado', login: 'tecnico.login', name: 'Outro rótulo' }); state.cells.duplicado = { 1: { shift: 'manha' } }; const payload = buildStructuredPublicationPayload(state, team('soc'), user()); expect(payload.members.filter((item) => item.login === 'tecnico.login')).toHaveLength(1); expect(payload.assignments.filter((item) => item.date === '2026-06-25' && item.shiftCode === 'M')).toHaveLength(1); });
   it('gera IDs determinísticos', () => { const member = { id: 'x', login: 'Pessoa.Login' }; expect(deterministicMemberId('soc', member)).toBe(deterministicMemberId('soc', { ...member, login: ' pessoa.login ' })); expect(deterministicPeriodId('soc', '2026-06-25', '2026-07-26', 'REGULAR')).toBe('soc-schedule-2026-06-25-2026-07-26'); });
   it('bloqueia DEMO e não publica automaticamente', () => { const state = regularState(); state.isDemo = true; const payload = buildStructuredPublicationPayload(state, team('soc'), user()); expect(publicationCriticalErrors(state, team('soc'), user(), payload)).toContain('Escalas de demonstração não podem ser publicadas.'); });
+  it('bloqueia Test Drive com mensagem específica no preview', () => { const state = regularState(); state.origin = 'demo-template'; const payload = buildStructuredPublicationPayload(state, team('soc'), user()); expect(publicationCriticalErrors(state, team('soc'), user(), payload)).toContain('Dados do Test Drive não podem ser publicados no Firebase.'); });
   it('planeja período novo, atualização preservando dados e substituição controlada', () => { const payload = buildStructuredPublicationPayload(regularState(), team('soc'), user()); const base = { payload, alerts: 0, criticalErrors: [], existingAssignments: 9, existingPeriod: true }; expect(publicationOperationSummary(base, 'update')).toMatchObject({ createsPeriod: false, removes: 0, preservesUnrelated: true }); expect(publicationOperationSummary(base, 'replace')).toMatchObject({ removes: 9, preservesUnrelated: false }); expect(publicationOperationSummary({ ...base, existingPeriod: false }, 'update').createsPeriod).toBe(true); });
+  it('recusa publicar Test Drive mesmo com criticalErrors vazio', async () => { const payload = buildStructuredPublicationPayload(regularState(), team('soc'), user()); await expect(publishStructuredSchedule({ payload, sourceOrigin: 'demo-template', alerts: 0, criticalErrors: [], existingAssignments: 0, existingPeriod: false }, 'update')).rejects.toThrow('Dados do Test Drive não podem ser publicados no Firebase.'); });
+  it('permite publicar escala normal sem erros críticos', async () => { const payload = buildStructuredPublicationPayload(regularState(), team('soc'), user()); await expect(publishStructuredSchedule({ payload, alerts: 0, criticalErrors: [], existingAssignments: 0, existingPeriod: false }, 'update')).resolves.toBeUndefined(); });
 });
 
 describe('trocas direcionadas pelo time', () => {
