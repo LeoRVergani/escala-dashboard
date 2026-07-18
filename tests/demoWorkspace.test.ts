@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { demoPackageToScheduleState } from '../src/lib/demoWorkspace/scheduleAdapter';
+import { applyScheduleStateToPackage, demoPackageToScheduleState } from '../src/lib/demoWorkspace/scheduleAdapter';
 import type { DemoPublicationPackage } from '../src/lib/demoWorkspace/dto';
 import { validateDemoPublicationPackage } from '../src/lib/demoWorkspace/validation';
 
@@ -159,5 +159,84 @@ describe('demo workspace schedule adapter', () => {
     expect(allCells.some((value) => value?.shift === 'folga')).toBe(true);
     expect(state.origin).toBe('demo-workspace-package');
     expect(state.isDemo).toBe(true);
+  });
+});
+
+describe('demo workspace reverse schedule adapter', () => {
+  const root = resolve(__dirname, '..');
+  const pkg = JSON.parse(
+    readFileSync(resolve(root, 'fixtures/demo/demo-v1-publication-package.json'), 'utf8'),
+  ) as DemoPublicationPackage;
+
+  it('reflete edicao de folga para manha preservando o id original', () => {
+    const state = demoPackageToScheduleState(pkg, 'team-demo-soc');
+    const targetTechnician = state.technicians.find((technician) =>
+      Object.values(state.cells[technician.id] ?? {}).some((value) => value?.shift === 'folga'),
+    );
+    expect(targetTechnician).toBeDefined();
+    const targetDay = Number(Object.entries(state.cells[targetTechnician!.id])
+      .find(([, value]) => value?.shift === 'folga')?.[0]);
+    const targetDate = state.dates![targetDay - 1];
+    const originalAssignment = pkg.scheduleAssignments.find((assignment) =>
+      assignment.teamId === 'team-demo-soc'
+      && assignment.memberId === targetTechnician!.id
+      && assignment.date === targetDate,
+    );
+
+    const editedState = {
+      ...state,
+      cells: {
+        ...state.cells,
+        [targetTechnician!.id]: {
+          ...state.cells[targetTechnician!.id],
+          [targetDay]: { shift: 'manha' as const },
+        },
+      },
+    };
+    const result = applyScheduleStateToPackage(pkg, editedState, 'team-demo-soc');
+    const editedAssignment = result.scheduleAssignments.find((assignment) => assignment.id === originalAssignment?.id);
+
+    expect(editedAssignment).toMatchObject({
+      id: originalAssignment?.id,
+      assignmentType: 'WORK_SHIFT',
+      shiftName: 'Manhã',
+      startTime: '07:00',
+      endTime: '13:00',
+    });
+  });
+
+  it('mantem assignments de outros times com a mesma referencia', () => {
+    const state = demoPackageToScheduleState(pkg, 'team-demo-soc');
+    const result = applyScheduleStateToPackage(pkg, state, 'team-demo-soc');
+    const originalOtherTeamAssignments = pkg.scheduleAssignments.filter((assignment) => assignment.teamId === 'team-demo-seguranca');
+
+    for (const original of originalOtherTeamAssignments) {
+      expect(result.scheduleAssignments.find((assignment) => assignment.id === original.id)).toBe(original);
+    }
+  });
+
+  it('preserva as referencias dos demais arrays do pacote', () => {
+    const state = demoPackageToScheduleState(pkg, 'team-demo-soc');
+    const result = applyScheduleStateToPackage(pkg, state, 'team-demo-soc');
+
+    expect(result.teams).toBe(pkg.teams);
+    expect(result.members).toBe(pkg.members);
+    expect(result.memberTeamMemberships).toBe(pkg.memberTeamMemberships);
+    expect(result.teamManagerAssignments).toBe(pkg.teamManagerAssignments);
+    expect(result.schedulePeriods).toBe(pkg.schedulePeriods);
+    expect(result.scheduleChangeRequests).toBe(pkg.scheduleChangeRequests);
+    expect(result.publicationRecords).toBe(pkg.publicationRecords);
+  });
+
+  it('mantem assignments semanticamente iguais no roundtrip sem edicao', () => {
+    for (const teamId of ['team-demo-soc', 'team-demo-seguranca']) {
+      const state = demoPackageToScheduleState(pkg, teamId);
+      const result = applyScheduleStateToPackage(pkg, state, teamId);
+
+      expect(result.scheduleAssignments.filter((assignment) => assignment.teamId === teamId)).toEqual(
+        pkg.scheduleAssignments.filter((assignment) => assignment.teamId === teamId),
+      );
+      expect(result.scheduleAssignments).toEqual(pkg.scheduleAssignments);
+    }
   });
 });

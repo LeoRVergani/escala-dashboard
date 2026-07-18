@@ -43,7 +43,7 @@ import { DemoWorkspaceBanner } from './components/DemoWorkspaceBanner';
 import { PublicationDialog } from './components/PublicationDialog';
 import { SwapRequestsDialog } from './components/SwapRequestsDialog';
 import { TeamDialog } from './components/TeamDialog';
-import { demoPackageToScheduleState } from './lib/demoWorkspace/scheduleAdapter';
+import { applyScheduleStateToPackage, demoPackageToScheduleState } from './lib/demoWorkspace/scheduleAdapter';
 import { moveSocAssignment, removeSocAssignment, updateSocAssignment, type SocShiftId } from './lib/socPlanner';
 import { useFirebaseDashboard } from './hooks/useFirebaseDashboard';
 import { useDemoWorkspace } from './hooks/useDemoWorkspace';
@@ -688,13 +688,17 @@ export default function App() {
       if (schedule.origin === 'demo-template') {
         saveTestDriveSession(schedule);
       } else if (schedule.origin === 'demo-workspace-package') {
-        // A persistência do Ambiente de Demonstração pertence ao useDemoWorkspace.
+        if (!schedule.demoTeamId || !demoWorkspace.state) return;
+        const next = applyScheduleStateToPackage(demoWorkspace.state.draftPackage, schedule, schedule.demoTeamId);
+        if (JSON.stringify(next.scheduleAssignments) !== JSON.stringify(demoWorkspace.state.draftPackage.scheduleAssignments)) {
+          demoWorkspace.updateDraft((draft) => applyScheduleStateToPackage(draft, schedule, schedule.demoTeamId!));
+        }
       } else {
         saveDraft(schedule, firebaseDashboard.selectedTeamId || undefined);
       }
     }, 800);
     return () => window.clearTimeout(id);
-  }, [schedule, firebaseDashboard.selectedTeamId]);
+  }, [schedule, firebaseDashboard.selectedTeamId, demoWorkspace]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
