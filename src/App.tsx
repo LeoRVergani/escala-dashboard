@@ -43,6 +43,7 @@ import { DemoWorkspaceBanner } from './components/DemoWorkspaceBanner';
 import { PublicationDialog } from './components/PublicationDialog';
 import { SwapRequestsDialog } from './components/SwapRequestsDialog';
 import { TeamDialog } from './components/TeamDialog';
+import { DemoManagerAssignmentsDialog } from './components/DemoManagerAssignmentsDialog';
 import { applyScheduleStateToPackage, demoPackageToScheduleState } from './lib/demoWorkspace/scheduleAdapter';
 import { moveSocAssignment, removeSocAssignment, updateSocAssignment, type SocShiftId } from './lib/socPlanner';
 import { useFirebaseDashboard } from './hooks/useFirebaseDashboard';
@@ -100,6 +101,7 @@ export default function App() {
   const [publicationPreview, setPublicationPreview] = useState<PublicationPreview | null>(null);
   const [swapRequests, setSwapRequests] = useState<ShiftSwapRequest[] | null>(null);
   const [showTeamDialog, setShowTeamDialog] = useState(false);
+  const [showDemoManagerAssignmentsDialog, setShowDemoManagerAssignmentsDialog] = useState(false);
   const [firebaseBusy, setFirebaseBusy] = useState(false);
   const [templateWizardMode, setTemplateWizardMode] = useState<'empty' | 'demo' | null>(null);
   const demoWorkspaceState = demoWorkspace.state;
@@ -918,6 +920,12 @@ export default function App() {
               ))}
             </div>
             <button
+              className="btn"
+              onClick={() => setShowDemoManagerAssignmentsDialog(true)}
+            >
+              Responsáveis e aprovações
+            </button>
+            <button
               className="btn demo-workspace-exit"
               onClick={() => {
                 demoWorkspace.exit();
@@ -1228,6 +1236,11 @@ export default function App() {
 
       {publicationPreview && firebaseDashboard.selectedTeam && <PublicationDialog preview={publicationPreview} team={firebaseDashboard.selectedTeam} busy={firebaseBusy} onCancel={() => setPublicationPreview(null)} onPublish={(mode) => void confirmPublication(mode)} />}
       {swapRequests && <SwapRequestsDialog requests={swapRequests} teams={firebaseDashboard.teams} busy={firebaseBusy} onClose={() => setSwapRequests(null)} onDecide={(request, decision) => void decideSwap(request, decision)} />}
+      {showDemoManagerAssignmentsDialog && demoWorkspace.state && <DemoManagerAssignmentsDialog pkg={demoWorkspace.state.draftPackage} onCancel={() => setShowDemoManagerAssignmentsDialog(false)} onSave={(nextPackage) => {
+        demoWorkspace.updateDraft(() => nextPackage);
+        setShowDemoManagerAssignmentsDialog(false);
+        notify('Responsáveis e aprovações atualizados localmente.');
+      }} />}
       {showTeamDialog && firebaseDashboard.user?.isSystemAdmin && <TeamDialog onCancel={() => setShowTeamDialog(false)} onSave={(team: Team) => {
         setFirebaseBusy(true);
         void saveTeam(firebaseDashboard.user!, team).then(() => firebaseDashboard.reloadTeams(firebaseDashboard.user!)).then(() => { setShowTeamDialog(false); notify('Time salvo.'); }).catch((error) => firebaseDashboard.setError((error as Error).message)).finally(() => setFirebaseBusy(false));
