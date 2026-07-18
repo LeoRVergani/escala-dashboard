@@ -65,6 +65,7 @@ describe('useDemoWorkspace', () => {
   it('restore volta ao baseline, revision 1, dirty false e remove localStorage', async () => {
     const { result } = renderHook(() => useDemoWorkspace());
     await loadHook(result);
+    const baselinePackage = result.current.state?.baselinePackage;
 
     act(() => {
       result.current.updateDraft((draft) => ({
@@ -72,12 +73,14 @@ describe('useDemoWorkspace', () => {
         teams: draft.teams.map((team, index) => index === 0 ? { ...team, name: 'Time alterado localmente' } : team),
       }));
     });
+    expect(result.current.state?.draftPackage).not.toEqual(baselinePackage);
+
     act(() => {
       result.current.saveLocalRevision();
       result.current.restore();
     });
 
-    expect(result.current.state?.draftPackage).toEqual(result.current.state?.baselinePackage);
+    expect(result.current.state?.draftPackage).toEqual(baselinePackage);
     expect(result.current.state?.localDraftRevision).toBe(1);
     expect(result.current.state?.dirty).toBe(false);
     expect(localStorage.getItem(DEMO_WORKSPACE_STORAGE_KEY)).toBeNull();

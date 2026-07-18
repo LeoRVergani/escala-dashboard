@@ -53,8 +53,10 @@ function hasWorkspaceMismatch(pkg: DemoPublicationPackage, manifest: DemoManifes
 }
 
 async function sha256Hex(raw: string): Promise<string> {
-  const subtle = globalThis.crypto?.subtle ?? (await import('node:crypto')).webcrypto.subtle;
-  const digest = await subtle.digest('SHA-256', new TextEncoder().encode(raw));
+  // Web Crypto (crypto.subtle) já está disponível tanto no navegador real quanto no
+  // ambiente de teste (jsdom/Node 22+) - sem fallback para node:crypto, que o Vite
+  // teria que externalizar do bundle do navegador sem necessidade.
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
   return Array.from(new Uint8Array(digest))
     .map((byte) => byte.toString(16).padStart(2, '0'))
     .join('');

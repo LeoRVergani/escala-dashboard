@@ -48,6 +48,7 @@ import { TeamDialog } from './components/TeamDialog';
 import { DemoManagerAssignmentsDialog } from './components/DemoManagerAssignmentsDialog';
 import { applyScheduleStateToPackage, demoPackageToScheduleState } from './lib/demoWorkspace/scheduleAdapter';
 import { diffDemoPackages } from './lib/demoWorkspace/diff';
+import { buildDemoWorkspaceExport, demoWorkspaceExportFileName } from './lib/demoWorkspace/export';
 import { moveSocAssignment, removeSocAssignment, updateSocAssignment, type SocShiftId } from './lib/socPlanner';
 import { useFirebaseDashboard } from './hooks/useFirebaseDashboard';
 import { useDemoWorkspace } from './hooks/useDemoWorkspace';
@@ -170,6 +171,38 @@ export default function App() {
     setClipboard(null);
     return true;
   }, [demoWorkspace, history]);
+
+  const restoreDemoWorkspace = useCallback(() => {
+    const confirmed = window.confirm('Esta ação descartará apenas as alterações locais do Ambiente de Demonstração.\n\nNenhum dado real será alterado.\nNenhum dado será enviado ao Firebase.');
+    if (!confirmed) return;
+
+    demoWorkspace.restore();
+    const restoredState = demoWorkspace.state;
+    if (schedule?.demoTeamId && restoredState) {
+      history.reset(demoPackageToScheduleState(restoredState.draftPackage, schedule.demoTeamId));
+      setN1Layer('principal');
+      setSelection(new Set());
+      setClipboard(null);
+    }
+    notify('Cenário de demonstração restaurado.');
+  }, [demoWorkspace, history, notify, schedule?.demoTeamId]);
+
+  const exportDemoWorkspace = useCallback(() => {
+    const current = demoWorkspace.state;
+    if (!current) return;
+
+    const envelope = buildDemoWorkspaceExport(current.draftPackage, current.localDraftRevision);
+    const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = demoWorkspaceExportFileName(current.localDraftRevision);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    notify('Pacote Demo exportado.');
+  }, [demoWorkspace, notify]);
 
   const loadDemoWorkspace = useCallback(async () => {
     const loaded = await demoWorkspace.load({ resumePersisted: true });
@@ -948,6 +981,18 @@ export default function App() {
               onClick={() => setShowDemoChangeRequestsDialog(true)}
             >
               Solicitações Demo
+            </button>
+            <button
+              className="btn"
+              onClick={restoreDemoWorkspace}
+            >
+              Restaurar cenário de demonstração
+            </button>
+            <button
+              className="btn"
+              onClick={exportDemoWorkspace}
+            >
+              Exportar pacote Demo
             </button>
             <button
               className="btn demo-workspace-exit"
