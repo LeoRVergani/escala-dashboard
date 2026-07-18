@@ -1,0 +1,383 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://escalaici.local/contracts/organization-approval-v1.schema.json",
+  "title": "Organization Approval Contract v1",
+  "description": "Contrato documental (FASE 14c-0) para o pacote de publicacao de equipes, membros, vinculos de gestao, permissoes e solicitacoes de alteracao de escala, incluindo o workspace de producao/demonstracao. So valida a FORMA dos dados. Nao e seed de producao, nao autoriza escrita em Firestore e nao contem nenhum dado real (tenant, client id, e-mail, login, hash, redirect, token, senha ou credencial). Invariante de aplicacao (nao expresso pelo motor de JSON Schema): todo item de todo array deste pacote deve ter workspaceId igual a workspace.workspaceId - um pacote de publicacao nunca mistura entidades de workspaces diferentes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "workspace"],
+  "properties": {
+    "schemaVersion": {
+      "const": 1,
+      "description": "Versao deste contrato documental."
+    },
+    "workspace": { "$ref": "#/$defs/workspace" },
+    "teams": {
+      "type": "array",
+      "description": "Mapeia para a colecao Firestore teams (ja existente, estendida - spec 57 secao 1).",
+      "items": { "$ref": "#/$defs/team" }
+    },
+    "members": {
+      "type": "array",
+      "description": "Mapeia para a colecao Firestore members (ja existente, estendida - spec 57 secao 1).",
+      "items": { "$ref": "#/$defs/member" }
+    },
+    "memberTeamMemberships": {
+      "type": "array",
+      "description": "Mapeia para a colecao Firestore member_team_memberships (ja existente, spec 35). Vinculo de pertencimento membro<->equipe. Incluido aqui apenas para referencia/validacao de forma no pacote de publicacao - esta spec nao recria essa colecao.",
+      "items": { "$ref": "#/$defs/memberTeamMembership" }
+    },
+    "teamManagerAssignments": {
+      "type": "array",
+      "description": "Mapeia para a colecao Firestore team_manager_assignments (nova - spec 57 secao 3). Vinculo de gestao/aprovacao, distinto do pertencimento em memberTeamMemberships.",
+      "items": { "$ref": "#/$defs/teamManagerAssignment" }
+    },
+    "scheduleChangeRequests": {
+      "type": "array",
+      "description": "Mapeia para a colecao Firestore schedule_change_requests (nova - spec 57 secao 4). Solicitacao pendente de decisao, distinta do log de auditoria schedule_change_events (ja existente).",
+      "items": { "$ref": "#/$defs/scheduleChangeRequest" }
+    },
+    "schedulePeriods": {
+      "type": "array",
+      "description": "Mapeia para a colecao Firestore schedule_periods (ja existente, estendida - spec 57 secao 7, campo aditivo workspaceId).",
+      "items": { "$ref": "#/$defs/schedulePeriod" }
+    },
+    "scheduleAssignments": {
+      "type": "array",
+      "description": "Mapeia para a colecao Firestore schedule_assignments (ja existente, estendida - spec 57 secao 7, campo aditivo workspaceId).",
+      "items": { "$ref": "#/$defs/scheduleAssignment" }
+    },
+    "publicationRecords": {
+      "type": "array",
+      "description": "Mapeia para a colecao Firestore publication_records (nova - spec 57 secao 6). Registro de auditoria de cada publicacao, sem segredo.",
+      "items": { "$ref": "#/$defs/publicationRecord" }
+    }
+  },
+  "$defs": {
+    "genericId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[a-z0-9][a-z0-9_-]*$",
+      "description": "Identificador generico, minusculo, sem espacos. Nunca um dado real (e-mail, login, tenant)."
+    },
+    "dateString": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "description": "Data de calendario YYYY-MM-DD, conforme convencao ja usada nas coleccoes existentes."
+    },
+    "timestampPlaceholder": {
+      "type": "string",
+      "description": "Marcador textual para um Firestore Timestamp real (ex.: 'server timestamp'). Este contrato nao valida timestamps reais.",
+      "examples": ["server timestamp"]
+    },
+    "genericEmail": {
+      "type": "string",
+      "description": "E-mail fictício apenas para exemplos/testes - deve usar um dominio reservado para documentacao, nunca um dominio real.",
+      "pattern": "^[a-z0-9._-]+@example\\.invalid$"
+    },
+    "workspaceType": {
+      "type": "string",
+      "enum": ["PRODUCTION", "DEMO"]
+    },
+    "workspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workspaceId",
+        "workspaceType",
+        "publicationRevision",
+        "externalEffectsAllowed",
+        "notificationsEnabled"
+      ],
+      "properties": {
+        "workspaceId": { "$ref": "#/$defs/genericId" },
+        "workspaceType": { "$ref": "#/$defs/workspaceType" },
+        "scenarioId": {
+          "type": ["string", "null"],
+          "description": "Identificador do cenario de demonstracao (ex.: schedule-approval-basic). So relevante para workspaceType DEMO."
+        },
+        "seedVersion": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "description": "Versao das fixtures carregadas. So relevante para workspaceType DEMO."
+        },
+        "publicationRevision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "externalEffectsAllowed": {
+          "type": "boolean",
+          "description": "Deve ser false para workspaceType DEMO (nunca notificacao/e-mail/Graph real)."
+        },
+        "notificationsEnabled": {
+          "type": "boolean",
+          "description": "Deve ser false para workspaceType DEMO."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "workspaceType": { "const": "DEMO" } }
+          },
+          "then": {
+            "properties": {
+              "externalEffectsAllowed": { "const": false },
+              "notificationsEnabled": { "const": false }
+            }
+          }
+        }
+      ]
+    },
+    "team": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Forma minima de teams (colecao ja existente, estendida - campos adicionais reais nao listados aqui permanecem validos).",
+      "required": ["id", "workspaceId", "name", "acronym", "active"],
+      "properties": {
+        "id": { "$ref": "#/$defs/genericId" },
+        "workspaceId": { "$ref": "#/$defs/genericId" },
+        "orgUnitId": { "$ref": "#/$defs/genericId" },
+        "name": { "type": "string", "minLength": 1 },
+        "acronym": { "type": "string", "minLength": 1 },
+        "active": { "type": "boolean" },
+        "adminEmails": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/genericEmail" }
+        },
+        "approverEmails": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/genericEmail" }
+        }
+      }
+    },
+    "member": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Forma minima de members (colecao ja existente, estendida).",
+      "required": ["id", "workspaceId", "displayName", "active"],
+      "properties": {
+        "id": { "$ref": "#/$defs/genericId" },
+        "workspaceId": { "$ref": "#/$defs/genericId" },
+        "displayName": { "type": "string", "minLength": 1 },
+        "corporateLogin": {
+          "type": "string",
+          "description": "Login corporativo fictício, apenas para localizar/exibir - nunca a chave de vinculo (a chave e sempre memberId).",
+          "examples": ["responsavel-exemplo"]
+        },
+        "emailNormalized": { "$ref": "#/$defs/genericEmail" },
+        "active": { "type": "boolean" }
+      }
+    },
+    "memberTeamMembership": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["id", "workspaceId", "memberId", "teamId", "startDate", "active", "isPrimary"],
+      "properties": {
+        "id": { "$ref": "#/$defs/genericId" },
+        "workspaceId": { "$ref": "#/$defs/genericId" },
+        "memberId": { "$ref": "#/$defs/genericId" },
+        "teamId": { "$ref": "#/$defs/genericId" },
+        "roleId": { "$ref": "#/$defs/genericId" },
+        "startDate": { "$ref": "#/$defs/dateString" },
+        "endDate": {
+          "anyOf": [{ "$ref": "#/$defs/dateString" }, { "type": "null" }]
+        },
+        "active": { "type": "boolean" },
+        "isPrimary": { "type": "boolean" }
+      }
+    },
+    "teamManagerRole": {
+      "type": "string",
+      "enum": [
+        "PRIMARY_MANAGER",
+        "PRIMARY_APPROVER",
+        "BACKUP_APPROVER",
+        "SCHEDULE_EDITOR",
+        "PUBLISHER",
+        "VIEW_ONLY"
+      ]
+    },
+    "teamManagerPermissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "viewTeamSchedule",
+        "viewTeamMembers",
+        "editTeamSchedule",
+        "approveScheduleChanges",
+        "publishSchedule",
+        "manageTeamAssignments"
+      ],
+      "properties": {
+        "viewTeamSchedule": { "type": "boolean" },
+        "viewTeamMembers": { "type": "boolean" },
+        "editTeamSchedule": { "type": "boolean" },
+        "approveScheduleChanges": { "type": "boolean" },
+        "publishSchedule": { "type": "boolean" },
+        "manageTeamAssignments": { "type": "boolean" }
+      },
+      "description": "As seis permissoes sao sempre explicitas (nunca omitidas assumindo false implicito) - spec 56 secao 6.1."
+    },
+    "teamManagerAssignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id", "workspaceId", "managerMemberId", "teamId", "role",
+        "permissions", "active", "validFrom", "createdAt", "updatedAt",
+        "createdBy", "schemaVersion"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/genericId" },
+        "workspaceId": { "$ref": "#/$defs/genericId" },
+        "managerMemberId": { "$ref": "#/$defs/genericId" },
+        "teamId": { "$ref": "#/$defs/genericId" },
+        "role": { "$ref": "#/$defs/teamManagerRole" },
+        "permissions": { "$ref": "#/$defs/teamManagerPermissions" },
+        "active": { "type": "boolean" },
+        "validFrom": { "$ref": "#/$defs/dateString" },
+        "validTo": {
+          "anyOf": [{ "$ref": "#/$defs/dateString" }, { "type": "null" }]
+        },
+        "createdAt": { "$ref": "#/$defs/timestampPlaceholder" },
+        "updatedAt": { "$ref": "#/$defs/timestampPlaceholder" },
+        "createdBy": {
+          "anyOf": [{ "$ref": "#/$defs/genericEmail" }, { "type": "string" }]
+        },
+        "schemaVersion": { "const": 1 }
+      }
+    },
+    "scheduleChangeRequestType": {
+      "type": "string",
+      "enum": [
+        "SHIFT_CHANGE",
+        "DAY_OFF_CHANGE",
+        "SWAP_WITH_MEMBER",
+        "SCHEDULE_CORRECTION",
+        "OTHER"
+      ]
+    },
+    "scheduleChangeRequestStatus": {
+      "type": "string",
+      "enum": ["DRAFT", "PENDING", "APPROVED", "REJECTED", "CANCELLED", "EXPIRED"]
+    },
+    "scheduleChangeRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id", "workspaceId", "requesterMemberId", "requesterTeamId",
+        "assignedManagerMemberId", "schedulePeriodId", "requestType",
+        "status", "reason", "createdAt", "schemaVersion"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/genericId" },
+        "workspaceId": { "$ref": "#/$defs/genericId" },
+        "requesterMemberId": { "$ref": "#/$defs/genericId" },
+        "requesterTeamId": { "$ref": "#/$defs/genericId" },
+        "assignedManagerMemberId": {
+          "$ref": "#/$defs/genericId",
+          "description": "Fotografia do responsavel no momento da criacao - imutavel apos a criacao (spec 56 secao 9.3)."
+        },
+        "schedulePeriodId": { "$ref": "#/$defs/genericId" },
+        "assignmentId": { "$ref": "#/$defs/genericId" },
+        "requestType": { "$ref": "#/$defs/scheduleChangeRequestType" },
+        "status": { "$ref": "#/$defs/scheduleChangeRequestStatus" },
+        "reason": { "type": "string", "minLength": 1 },
+        "createdAt": { "$ref": "#/$defs/timestampPlaceholder" },
+        "resolvedAt": {
+          "anyOf": [{ "$ref": "#/$defs/timestampPlaceholder" }, { "type": "null" }]
+        },
+        "resolvedByMemberId": {
+          "anyOf": [{ "$ref": "#/$defs/genericId" }, { "type": "null" }]
+        },
+        "resolutionNote": {
+          "anyOf": [{ "type": "string", "minLength": 1 }, { "type": "null" }]
+        },
+        "schemaVersion": { "const": 1 }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "status": { "const": "REJECTED" } },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": {
+              "resolutionNote": { "type": "string", "minLength": 1 }
+            },
+            "required": ["resolutionNote"]
+          },
+          "description": "Recusa exige justificativa (spec 56 secao 9.4)."
+        }
+      ]
+    },
+    "scheduleAssignmentType": {
+      "type": "string",
+      "enum": ["WORK_SHIFT", "OFF", "VACATION", "ABSENCE", "TRAINING", "OTHER"]
+    },
+    "schedulePeriod": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Forma minima de schedule_periods (colecao ja existente, estendida - spec 57 secao 7, campo aditivo workspaceId).",
+      "required": ["id", "workspaceId", "teamId", "startDate", "endDate", "active", "schemaVersion"],
+      "properties": {
+        "id": { "$ref": "#/$defs/genericId" },
+        "workspaceId": { "$ref": "#/$defs/genericId" },
+        "teamId": { "$ref": "#/$defs/genericId" },
+        "name": { "type": "string", "minLength": 1 },
+        "startDate": { "$ref": "#/$defs/dateString" },
+        "endDate": { "$ref": "#/$defs/dateString" },
+        "active": { "type": "boolean" },
+        "publicationRevision": { "type": "integer", "minimum": 0 },
+        "schemaVersion": { "const": 1 }
+      }
+    },
+    "scheduleAssignment": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Forma minima de schedule_assignments (colecao ja existente, estendida - spec 57 secao 7, campo aditivo workspaceId).",
+      "required": ["id", "workspaceId", "periodId", "teamId", "memberId", "date", "assignmentType", "schemaVersion"],
+      "properties": {
+        "id": { "$ref": "#/$defs/genericId" },
+        "workspaceId": { "$ref": "#/$defs/genericId" },
+        "periodId": { "$ref": "#/$defs/genericId" },
+        "teamId": { "$ref": "#/$defs/genericId" },
+        "memberId": { "$ref": "#/$defs/genericId" },
+        "date": { "$ref": "#/$defs/dateString" },
+        "assignmentType": { "$ref": "#/$defs/scheduleAssignmentType" },
+        "shiftName": { "type": ["string", "null"] },
+        "startTime": { "type": ["string", "null"] },
+        "endTime": { "type": ["string", "null"] },
+        "schemaVersion": { "const": 1 }
+      }
+    },
+    "publicationRecordSource": {
+      "type": "string",
+      "enum": ["DASHBOARD_MANUAL_PUBLISH", "DEMO_RESET", "DEMO_SEED"]
+    },
+    "publicationRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Registro de auditoria de uma publicacao (spec 57 secao 6) - nunca contem segredo.",
+      "required": [
+        "id", "workspaceId", "publicationRevision", "publishedAt",
+        "publishedByMode", "dryRun", "countsCreated", "countsUpdated",
+        "countsDeleted", "source", "schemaVersion"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/genericId" },
+        "workspaceId": { "$ref": "#/$defs/genericId" },
+        "publicationRevision": { "type": "integer", "minimum": 0 },
+        "publishedAt": { "$ref": "#/$defs/timestampPlaceholder" },
+        "publishedByMode": { "type": "string", "enum": ["LOCAL_TEST_MODE", "CORPORATE_MSAL"] },
+        "publishedByLogin": { "type": "string" },
+        "dryRun": { "type": "boolean" },
+        "countsCreated": { "type": "integer", "minimum": 0 },
+        "countsUpdated": { "type": "integer", "minimum": 0 },
+        "countsDeleted": { "const": 0 },
+        "source": { "$ref": "#/$defs/publicationRecordSource" },
+        "schemaVersion": { "const": 1 }
+      }
+    }
+  }
+}

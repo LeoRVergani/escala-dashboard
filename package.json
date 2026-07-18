@@ -13,7 +13,8 @@
     "check": "npm run typecheck && npm run test",
     "test:rules": "firebase emulators:exec --only firestore --project demo-escala-dashboard \"node --test tests/firestore.rules.test.mjs\"",
     "fixtures": "node scripts/make-fixtures.mjs",
-    "analyze": "node scripts/analyze-file.mjs"
+    "analyze": "node scripts/analyze-file.mjs",
+    "demo:sync": "node scripts/sync-demo-v1.mjs"
   },
   "dependencies": {
     "firebase": "^12.16.0",

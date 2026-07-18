@@ -1,0 +1,22 @@
+{
+  "workspaceId": "demo-v1",
+  "scenarioId": "schedule-approval-basic",
+  "seedVersion": 1,
+  "publicationRevision": 1,
+  "generatorVersion": 1,
+  "generated": true,
+  "generatedAt": "2026-07-25T18:00:00Z",
+  "sourceFile": "composeApp/src/commonMain/composeResources/files/demo/demo-v1-publication-package.json",
+  "sha256": "d0b6cddd574fbd4824d46ebb39bcce9c174a90a693a0c159078663e78eb2d7cc",
+  "counts": {
+    "teams": 2,
+    "members": 5,
+    "memberTeamMemberships": 5,
+    "teamManagerAssignments": 2,
+    "schedulePeriods": 2,
+    "scheduleAssignments": 124,
+    "scheduleChangeRequests": 3,
+    "publicationRecords": 1
+  },
+  "schemaVersion": 1
+}
