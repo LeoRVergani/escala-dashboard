@@ -449,6 +449,10 @@ export default function App() {
 
   const addTechnician = useCallback(
     (login: string, name: string) => {
+      if (schedule?.origin === 'demo-workspace-package') {
+        notify('A composição de membros do Ambiente de Demonstração é fixa pela fixture oficial.');
+        return;
+      }
       mutate((prev) => {
         if (prev.serviceDeskN1) {
           const fullName = formatN1Name(name || 'Novo técnico');
@@ -480,11 +484,15 @@ export default function App() {
       });
       notify('Técnico adicionado.');
     },
-    [mutate, notify, n1Layer],
+    [mutate, notify, n1Layer, schedule?.origin],
   );
 
   const editTechnician = useCallback(
     (id: string, login: string, name: string) => {
+      if (schedule?.origin === 'demo-workspace-package') {
+        notify('A composição de membros do Ambiente de Demonstração é fixa pela fixture oficial.');
+        return;
+      }
       mutate((prev) => {
         if (prev.serviceDeskN1) {
           const target = [...prev.serviceDeskN1.principalRows, ...prev.serviceDeskN1.emailGuaranteeRows]
@@ -520,11 +528,15 @@ export default function App() {
         };
       });
     },
-    [mutate],
+    [mutate, notify, schedule?.origin],
   );
 
   const removeTechnician = useCallback(
     (id: string) => {
+      if (schedule?.origin === 'demo-workspace-package') {
+        notify('A composição de membros do Ambiente de Demonstração é fixa pela fixture oficial.');
+        return;
+      }
       mutate((prev) => {
         if (prev.serviceDeskN1) {
           return updateN1Rows(prev, n1Layer, (rows) => rows.filter((row) => row.id !== id));
@@ -543,7 +555,7 @@ export default function App() {
       });
       notify('Técnico removido.');
     },
-    [mutate, notify, n1Layer],
+    [mutate, notify, n1Layer, schedule?.origin],
   );
 
   const updateN1Pause = useCallback(
