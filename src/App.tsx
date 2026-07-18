@@ -40,11 +40,14 @@ import { SocPlanner } from './components/SocPlanner';
 import { ConflictAlertsPanel } from './components/ConflictAlertsPanel';
 import { FirebaseDashboardBar } from './components/FirebaseDashboardBar';
 import { DemoWorkspaceBanner } from './components/DemoWorkspaceBanner';
+import { DemoScenarioSummary } from './components/DemoScenarioSummary';
+import { DemoChangeRequestsDialog } from './components/DemoChangeRequestsDialog';
 import { PublicationDialog } from './components/PublicationDialog';
 import { SwapRequestsDialog } from './components/SwapRequestsDialog';
 import { TeamDialog } from './components/TeamDialog';
 import { DemoManagerAssignmentsDialog } from './components/DemoManagerAssignmentsDialog';
 import { applyScheduleStateToPackage, demoPackageToScheduleState } from './lib/demoWorkspace/scheduleAdapter';
+import { diffDemoPackages } from './lib/demoWorkspace/diff';
 import { moveSocAssignment, removeSocAssignment, updateSocAssignment, type SocShiftId } from './lib/socPlanner';
 import { useFirebaseDashboard } from './hooks/useFirebaseDashboard';
 import { useDemoWorkspace } from './hooks/useDemoWorkspace';
@@ -102,6 +105,7 @@ export default function App() {
   const [swapRequests, setSwapRequests] = useState<ShiftSwapRequest[] | null>(null);
   const [showTeamDialog, setShowTeamDialog] = useState(false);
   const [showDemoManagerAssignmentsDialog, setShowDemoManagerAssignmentsDialog] = useState(false);
+  const [showDemoChangeRequestsDialog, setShowDemoChangeRequestsDialog] = useState(false);
   const [firebaseBusy, setFirebaseBusy] = useState(false);
   const [templateWizardMode, setTemplateWizardMode] = useState<'empty' | 'demo' | null>(null);
   const demoWorkspaceState = demoWorkspace.state;
@@ -151,6 +155,11 @@ export default function App() {
     () => [...(demoWorkspaceState?.draftPackage.teams ?? [])].sort((a, b) => a.id.localeCompare(b.id)),
     [demoWorkspaceState],
   );
+
+  const demoWorkspaceDiff = useMemo(() => {
+    if (!demoWorkspaceState?.dirty) return null;
+    return diffDemoPackages(demoWorkspaceState.baselinePackage, demoWorkspaceState.draftPackage);
+  }, [demoWorkspaceState]);
 
   const resetDemoSchedule = useCallback((teamId: string): boolean => {
     const current = demoWorkspace.state;
@@ -905,6 +914,15 @@ export default function App() {
             sourcePublicationRevision={demoWorkspaceState?.sourcePublicationRevision ?? 1}
             dirty={demoWorkspaceState?.dirty ?? false}
           />
+          {demoWorkspaceState && (
+            <DemoScenarioSummary
+              pkg={demoWorkspaceState.draftPackage}
+              sourcePublicationRevision={demoWorkspaceState.sourcePublicationRevision}
+              localDraftRevision={demoWorkspaceState.localDraftRevision}
+              dirty={demoWorkspaceState.dirty}
+              diff={demoWorkspaceDiff}
+            />
+          )}
           <div className="demo-workspace-controls" aria-label="Controles do Ambiente de Demonstração">
             <div className="demo-workspace-tabs" role="tablist" aria-label="Times do Ambiente de Demonstração">
               {demoTeams.map((team) => (
@@ -924,6 +942,12 @@ export default function App() {
               onClick={() => setShowDemoManagerAssignmentsDialog(true)}
             >
               Responsáveis e aprovações
+            </button>
+            <button
+              className="btn"
+              onClick={() => setShowDemoChangeRequestsDialog(true)}
+            >
+              Solicitações Demo
             </button>
             <button
               className="btn demo-workspace-exit"
@@ -1241,6 +1265,12 @@ export default function App() {
         setShowDemoManagerAssignmentsDialog(false);
         notify('Responsáveis e aprovações atualizados localmente.');
       }} />}
+      {showDemoChangeRequestsDialog && demoWorkspace.state && (
+        <DemoChangeRequestsDialog
+          pkg={demoWorkspace.state.draftPackage}
+          onClose={() => setShowDemoChangeRequestsDialog(false)}
+        />
+      )}
       {showTeamDialog && firebaseDashboard.user?.isSystemAdmin && <TeamDialog onCancel={() => setShowTeamDialog(false)} onSave={(team: Team) => {
         setFirebaseBusy(true);
         void saveTeam(firebaseDashboard.user!, team).then(() => firebaseDashboard.reloadTeams(firebaseDashboard.user!)).then(() => { setShowTeamDialog(false); notify('Time salvo.'); }).catch((error) => firebaseDashboard.setError((error as Error).message)).finally(() => setFirebaseBusy(false));
