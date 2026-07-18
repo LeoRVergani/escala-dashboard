@@ -1,0 +1,106 @@
+import crypto from 'node:crypto';
+import cors from 'cors';
+import express from 'express';
+import { PublicationError } from './errors.mjs';
+import { createDemoStatusRouter } from './routes/demoStatus.mjs';
+import { createHealthRouter } from './routes/health.mjs';
+
+function isSafeDetails(details) {
+  if (!details || typeof details !== 'object' || Array.isArray(details)) {
+    return false;
+  }
+
+  return Object.values(details).every((value) => {
+    if (typeof value === 'string') {
+      return value.length <= 120;
+    }
+
+    return typeof value === 'number' || typeof value === 'boolean' || value === null;
+  });
+}
+
+function buildPublicationErrorBody(err, requestId) {
+  const error = {
+    code: err.code,
+    message: err.message,
+    requestId,
+  };
+
+  if (isSafeDetails(err.details)) {
+    error.details = err.details;
+  }
+
+  return { error };
+}
+
+export function createApp(config) {
+  const app = express();
+  const allowedOrigins = new Set(config.allowedOrigins);
+
+  app.use((req, res, next) => {
+    req.requestId = crypto.randomUUID();
+    res.setHeader('X-Request-Id', req.requestId);
+    next();
+  });
+
+  app.use(cors({
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.has(origin)) {
+        callback(null, origin || false);
+        return;
+      }
+
+      callback(null, false);
+    },
+    methods: ['GET', 'POST', 'OPTIONS'],
+  }));
+
+  app.use(express.json({ limit: config.maxJsonBodyBytes }));
+
+  app.use('/api/health', createHealthRouter());
+  app.use('/api/demo/status', createDemoStatusRouter());
+
+  app.use((req, res) => {
+    res.status(404).json({
+      error: {
+        code: 'API_UNAVAILABLE',
+        message: 'Rota não encontrada.',
+        requestId: req.requestId,
+      },
+    });
+  });
+
+  app.use((err, req, res, next) => {
+    if (res.headersSent) {
+      next(err);
+      return;
+    }
+
+    if (err instanceof PublicationError) {
+      res.status(err.httpStatus).json(buildPublicationErrorBody(err, req.requestId));
+      return;
+    }
+
+    if (err.type === 'entity.too.large') {
+      res.status(err.status ?? 413).json({
+        error: {
+          code: 'API_UNAVAILABLE',
+          message: 'Corpo JSON excede o limite permitido.',
+          requestId: req.requestId,
+        },
+      });
+      return;
+    }
+
+    console.error(err);
+    res.status(500).json({
+      error: {
+        code: 'API_UNAVAILABLE',
+        message: 'Erro interno.',
+        requestId: req.requestId,
+      },
+    });
+  });
+
+  return app;
+}

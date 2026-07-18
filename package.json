@@ -9,6 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "server:dev": "node --env-file-if-exists=.env --watch server/index.mjs",
+    "server:start": "node --env-file-if-exists=.env server/index.mjs",
     "typecheck": "tsc --noEmit",
     "check": "npm run typecheck && npm run test",
     "test:rules": "firebase emulators:exec --only firestore --project demo-escala-dashboard \"node --test tests/firestore.rules.test.mjs\"",
@@ -17,7 +19,10 @@
     "demo:sync": "node scripts/sync-demo-v1.mjs"
   },
   "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^4.22.2",
     "firebase": "^12.16.0",
+    "firebase-admin": "^14.1.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "xlsx": "^0.18.5"

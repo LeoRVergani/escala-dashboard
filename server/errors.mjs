@@ -1,0 +1,30 @@
+const HTTP_STATUS_BY_CODE = {
+  API_UNAVAILABLE: 503,
+  FIREBASE_ADMIN_NOT_CONFIGURED: 503,
+  DEMO_WRITE_DISABLED: 403,
+  WORKSPACE_NOT_ALLOWED: 403,
+  INVALID_CONFIRMATION: 400,
+  INVALID_PACKAGE: 400,
+  CHECKSUM_MISMATCH: 400,
+  SCHEMA_UNSUPPORTED: 400,
+  BROKEN_REFERENCE: 400,
+  PUBLICATION_REVISION_CONFLICT: 409,
+  IDEMPOTENCY_CONFLICT: 409,
+  FIRESTORE_WRITE_FAILED: 500,
+  PUBLICATION_ACTIVATION_FAILED: 500,
+  DEMO_RESET_FAILED: 500,
+};
+
+export class PublicationError extends Error {
+  constructor(code, message, { httpStatus, details } = {}) {
+    super(message);
+    this.name = 'PublicationError';
+    this.code = code;
+    this.httpStatus = httpStatus ?? PublicationError.httpStatusFor(code);
+    this.details = details;
+  }
+
+  static httpStatusFor(code) {
+    return HTTP_STATUS_BY_CODE[code] ?? 500;
+  }
+}
