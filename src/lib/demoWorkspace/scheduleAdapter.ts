@@ -95,6 +95,7 @@ export function demoPackageToScheduleState(pkg: DemoPublicationPackage, teamId: 
     sourceLabel: `Ambiente de Demonstração — ${team.name}`,
     isDemo: true,
     origin: 'demo-workspace-package',
+    demoTeamId: teamId,
   };
 
   // Mais de um turno de trabalho indica escala rotativa, onde o agrupamento visual por turno ajuda a leitura.

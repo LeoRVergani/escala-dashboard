@@ -98,6 +98,8 @@ export interface ScheduleState {
   sourceLabel?: string;
   isDemo?: boolean;
   origin?: 'import' | 'empty-template' | 'demo-template' | 'demo-workspace-package' | 'manual';
+  /** Time do pacote Demo atualmente projetado na grade. */
+  demoTeamId?: string;
   /** Organiza os colaboradores por turno predominante no período (uso do SOC). */
   visualGrouping?: 'operational-shift';
   /** Metadados e segunda grade específicos da Equipe Técnicos de TI N1. */

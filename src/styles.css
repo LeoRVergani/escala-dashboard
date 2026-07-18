@@ -754,6 +754,36 @@ details.block li { margin: 2px 0; }
   color: #fff;
 }
 .n1-layer-summary { margin-left: auto; }
+.demo-workspace-banner {
+  background: #fff7e0;
+  border-bottom-color: #e5c765;
+}
+.demo-workspace-dirty {
+  color: #7a5b00 !important;
+  font-weight: 700;
+}
+.demo-workspace-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+.demo-workspace-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.demo-workspace-tabs .btn[aria-selected="true"] {
+  background: var(--action);
+  border-color: var(--action);
+  color: #fff;
+}
+.demo-workspace-controls .demo-workspace-exit {
+  margin-left: auto;
+}
 
 .grid-n1 .col-shift {
   position: sticky;

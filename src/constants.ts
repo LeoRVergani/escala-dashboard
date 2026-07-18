@@ -32,6 +32,7 @@ export const WEEKDAY_ABBREVIATIONS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 
 
 export const DRAFT_STORAGE_KEY = 'escala-dashboard:rascunho:v1';
 export const TEST_DRIVE_STORAGE_KEY = 'escala-dashboard:test-drive:v1';
+export const DEMO_WORKSPACE_STORAGE_KEY = 'escala-dashboard:demo-workspace:v1';
 
 export interface N1CodeDef {
   code: string;

@@ -39,11 +39,14 @@ import { OnCallEditor } from './components/OnCallEditor';
 import { SocPlanner } from './components/SocPlanner';
 import { ConflictAlertsPanel } from './components/ConflictAlertsPanel';
 import { FirebaseDashboardBar } from './components/FirebaseDashboardBar';
+import { DemoWorkspaceBanner } from './components/DemoWorkspaceBanner';
 import { PublicationDialog } from './components/PublicationDialog';
 import { SwapRequestsDialog } from './components/SwapRequestsDialog';
 import { TeamDialog } from './components/TeamDialog';
+import { demoPackageToScheduleState } from './lib/demoWorkspace/scheduleAdapter';
 import { moveSocAssignment, removeSocAssignment, updateSocAssignment, type SocShiftId } from './lib/socPlanner';
 import { useFirebaseDashboard } from './hooks/useFirebaseDashboard';
+import { useDemoWorkspace } from './hooks/useDemoWorkspace';
 import { signInWithMicrosoft, signOutDashboard } from './lib/authRepository';
 import { buildPublicationPreview, type PublicationPreview } from './lib/publicationPreview';
 import { publishStructuredSchedule, type PublicationMode } from './lib/schedulePublishRepository';
@@ -77,6 +80,7 @@ function shortN1Name(raw: string): string {
 export default function App() {
   const history = useHistory<ScheduleState | null>(null);
   const firebaseDashboard = useFirebaseDashboard();
+  const demoWorkspace = useDemoWorkspace();
   const schedule = history.state;
   const [n1Layer, setN1Layer] = useState<ServiceDeskN1Layer>('principal');
   const [pending, setPending] = useState<PendingImport | null>(null);
@@ -98,6 +102,7 @@ export default function App() {
   const [showTeamDialog, setShowTeamDialog] = useState(false);
   const [firebaseBusy, setFirebaseBusy] = useState(false);
   const [templateWizardMode, setTemplateWizardMode] = useState<'empty' | 'demo' | null>(null);
+  const demoWorkspaceState = demoWorkspace.state;
 
   const notify = useCallback((msg: string) => {
     setToast(msg);
@@ -139,6 +144,36 @@ export default function App() {
     setShowConflicts(true);
     window.requestAnimationFrame(() => conflictPanelRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }));
   }, []);
+
+  const demoTeams = useMemo(
+    () => [...(demoWorkspaceState?.draftPackage.teams ?? [])].sort((a, b) => a.id.localeCompare(b.id)),
+    [demoWorkspaceState],
+  );
+
+  const resetDemoSchedule = useCallback((teamId: string): boolean => {
+    const current = demoWorkspace.state;
+    if (!current) return false;
+    history.reset(demoPackageToScheduleState(current.draftPackage, teamId));
+    setN1Layer('principal');
+    setSelection(new Set());
+    setClipboard(null);
+    return true;
+  }, [demoWorkspace, history]);
+
+  const loadDemoWorkspace = useCallback(async () => {
+    const loaded = await demoWorkspace.load({ resumePersisted: true });
+    if (!loaded) {
+      notify(demoWorkspace.validationError?.message ?? 'Não foi possível carregar o Ambiente de Demonstração.');
+      return;
+    }
+    const firstTeamId = [...(demoWorkspace.state?.draftPackage.teams ?? [])]
+      .sort((a, b) => a.id.localeCompare(b.id))[0]?.id;
+    if (!firstTeamId || !resetDemoSchedule(firstTeamId)) {
+      notify('O Ambiente de Demonstração não possui time carregável.');
+      return;
+    }
+    notify('Ambiente de Demonstração carregado.');
+  }, [demoWorkspace, notify, resetDemoSchedule]);
 
   /* ---------- Importação ---------- */
 
@@ -652,6 +687,8 @@ export default function App() {
     const id = window.setTimeout(() => {
       if (schedule.origin === 'demo-template') {
         saveTestDriveSession(schedule);
+      } else if (schedule.origin === 'demo-workspace-package') {
+        // A persistência do Ambiente de Demonstração pertence ao useDemoWorkspace.
       } else {
         saveDraft(schedule, firebaseDashboard.selectedTeamId || undefined);
       }
@@ -775,6 +812,9 @@ export default function App() {
                     saveTestDriveSession(schedule);
                     setTestDriveAvailable(true);
                     notify('Test Drive salvo neste navegador.');
+                  } else if (schedule.origin === 'demo-workspace-package') {
+                    demoWorkspace.saveLocalRevision();
+                    notify('Revisão local do Ambiente de Demonstração registrada neste navegador.');
                   } else {
                     saveDraft(schedule, firebaseDashboard.selectedTeamId || undefined);
                     setDraftAvailable(true);
@@ -819,6 +859,9 @@ export default function App() {
             saveTestDriveSession(schedule);
             setTestDriveAvailable(true);
             notify('Test Drive salvo neste navegador.');
+          } else if (schedule?.origin === 'demo-workspace-package') {
+            demoWorkspace.saveLocalRevision();
+            notify('Revisão local do Ambiente de Demonstração registrada neste navegador.');
           } else if (schedule && firebaseDashboard.selectedTeam) {
             saveDraft(schedule, firebaseDashboard.selectedTeam.id);
             setDraftAvailable(true);
@@ -847,6 +890,43 @@ export default function App() {
             Encerrar Test Drive e apagar dados locais
           </button>
         </div>
+      )}
+
+      {schedule && schedule.origin === 'demo-workspace-package' && (
+        <>
+          <DemoWorkspaceBanner
+            workspaceId={demoWorkspaceState?.workspaceId ?? 'demo-v1'}
+            sourcePublicationRevision={demoWorkspaceState?.sourcePublicationRevision ?? 1}
+            dirty={demoWorkspaceState?.dirty ?? false}
+          />
+          <div className="demo-workspace-controls" aria-label="Controles do Ambiente de Demonstração">
+            <div className="demo-workspace-tabs" role="tablist" aria-label="Times do Ambiente de Demonstração">
+              {demoTeams.map((team) => (
+                <button
+                  key={team.id}
+                  role="tab"
+                  aria-selected={schedule.demoTeamId === team.id}
+                  className="btn"
+                  onClick={() => resetDemoSchedule(team.id)}
+                >
+                  {team.name}
+                </button>
+              ))}
+            </div>
+            <button
+              className="btn demo-workspace-exit"
+              onClick={() => {
+                demoWorkspace.exit();
+                history.reset(null);
+                setSelection(new Set());
+                setClipboard(null);
+                notify('Ambiente de Demonstração fechado.');
+              }}
+            >
+              Sair do Ambiente de Demonstração
+            </button>
+          </div>
+        </>
       )}
 
       {schedule?.serviceDeskN1 && schedule.viewType !== 'oncall' && (
@@ -968,6 +1048,12 @@ export default function App() {
               </button>
               <button
                 className="btn"
+                onClick={() => void loadDemoWorkspace()}
+              >
+                Ambiente de Demonstração
+              </button>
+              <button
+                className="btn"
                 onClick={() => setTemplateWizardMode('empty')}
               >
                 Criar escala vazia
@@ -1004,6 +1090,14 @@ export default function App() {
                   }}
                 >
                   Continuar Test Drive
+                </button>
+              )}
+              {demoWorkspace.hasPersistedDraft && (
+                <button
+                  className="btn"
+                  onClick={() => void loadDemoWorkspace()}
+                >
+                  Continuar Ambiente de Demonstração
                 </button>
               )}
             </div>
@@ -1141,7 +1235,7 @@ export default function App() {
         </div>
       )}
 
-      {schedule && (
+      {schedule && schedule.origin !== 'demo-workspace-package' && (
         <span className="muted" style={{ position: 'fixed', bottom: 6, right: 12, fontSize: 11 }}>
           rascunho salvo automaticamente neste navegador
           {' · '}
