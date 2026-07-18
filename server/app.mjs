@@ -2,8 +2,10 @@ import crypto from 'node:crypto';
 import cors from 'cors';
 import express from 'express';
 import { PublicationError } from './errors.mjs';
+import { getFirebaseAdmin as defaultGetFirebaseAdmin } from './infra/firebaseAdmin.mjs';
 import { createDemoStatusRouter } from './routes/demoStatus.mjs';
 import { createHealthRouter } from './routes/health.mjs';
+import { createPublishRouter } from './routes/publish.mjs';
 
 function isSafeDetails(details) {
   if (!details || typeof details !== 'object' || Array.isArray(details)) {
@@ -33,9 +35,14 @@ function buildPublicationErrorBody(err, requestId) {
   return { error };
 }
 
-export function createApp(config) {
+export function createApp(config, overrides = {}) {
   const app = express();
   const allowedOrigins = new Set(config.allowedOrigins);
+  const routeDependencies = {
+    getFirebaseAdmin: overrides.getFirebaseAdmin ?? defaultGetFirebaseAdmin,
+    config,
+    store: overrides.store,
+  };
 
   app.use((req, res, next) => {
     req.requestId = crypto.randomUUID();
@@ -58,7 +65,8 @@ export function createApp(config) {
   app.use(express.json({ limit: config.maxJsonBodyBytes }));
 
   app.use('/api/health', createHealthRouter());
-  app.use('/api/demo/status', createDemoStatusRouter());
+  app.use('/api/demo/status', createDemoStatusRouter(routeDependencies));
+  app.use('/api/publish', createPublishRouter(routeDependencies));
 
   app.use((req, res) => {
     res.status(404).json({
