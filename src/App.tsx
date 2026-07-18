@@ -818,7 +818,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           Painel de Escalas
-          <small>v1.10.0 · importar → escolher período/bloco → revisar → editar → publicar</small>
+          <small>v1.12.0 · importar → escolher período/bloco → revisar → editar → publicar</small>
         </div>
         {schedule && (
           <>

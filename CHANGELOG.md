@@ -1,5 +1,17 @@
 # Histórico de versões
 
+## 1.12.0 — 18/07/2026
+
+- espelha o workspace `demo-v1` (times, membros, vínculos de gestão, escala, solicitações) gerado pela FASE 14c-2 do EscalaICI-KMP-Lab, sincronizado por `npm run demo:sync`, nunca gerado neste repositório;
+- adiciona entrada "Ambiente de Demonstração" na tela inicial, reaproveitando a Grade/Planejador existentes para editar a escala dos dois times reais da fixture;
+- isola o rascunho do workspace Demo em `localStorage` próprio (`escala-dashboard:demo-workspace:v1`), com baseline imutável, rascunho editável, revisão local e retomada entre sessões;
+- adiciona edição local de responsáveis e aprovações (papel, permissões, vigência, status), sempre por seleção de time/membro já cadastrado, nunca texto livre;
+- adiciona visualização somente leitura das 3 solicitações de exemplo (pendente/aprovada/recusada), com aprovação/recusa desabilitadas até a FASE 14c-7;
+- adiciona resumo compacto do cenário e prévia de diferenças (por id determinístico) entre o pacote original e o rascunho local;
+- adiciona restaurar cenário (com confirmação) e exportar pacote Demo (envelope local, separado do contrato canônico);
+- corrige o cabeçalho da tela inicial (mostrava `v1.10.0`, desatualizado desde a 1.11.0);
+- não adiciona Firebase, Express, MSAL nem nenhuma publicação real nesta fase; preserva a interface, o Test Drive e os fluxos de import/Firebase existentes sem alterações de comportamento.
+
 ## 1.11.0 — 16/07/2026
 
 - adiciona assistente inicial compartilhado para escala vazia e Test Drive;

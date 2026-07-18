@@ -1,4 +1,16 @@
-# Painel de Escalas 1.11.0
+# Painel de Escalas 1.12.0
+
+## Novidades da 1.12.0
+
+O Dashboard ganha um workspace de demonstração organizacional (`demo-v1`): dois times reais (SOC Demonstração, Segurança da Informação Demonstração), cinco membros, um responsável administrando as duas equipes, 124 atribuições de escala e três solicitações de exemplo (pendente, aprovada, recusada). Esses dados não são gerados aqui — são um espelho estático (`fixtures/demo/`, `contracts/`) sincronizado do repositório `EscalaICI-KMP-Lab` (FASE 14c-2) via `npm run demo:sync`, validado por schema, checksum e contagens antes de qualquer cópia.
+
+A tela inicial ganha a entrada "Ambiente de Demonstração", que projeta a escala de cada time nos mesmos Grade/Planejador já existentes — nenhum editor foi duplicado. Um banner permanente, um resumo compacto do cenário e uma prévia de diferenças (por id, nunca por posição) acompanham qualquer edição. As alterações ficam num rascunho local isolado (`localStorage` próprio, chave distinta do Test Drive), com revisão local própria, retomada entre sessões e ação de restaurar o cenário original a qualquer momento.
+
+Uma nova tela de Responsáveis e aprovações permite cadastrar/editar localmente quem administra cada time (papel, as seis permissões, vigência, status), sempre escolhendo time e responsável em listas já existentes — nunca um campo de login livre. Uma visualização somente leitura mostra as três solicitações de exemplo; aprovar/recusar fica desabilitado até uma fase futura (14c-7).
+
+Esta fase não adiciona Firebase, Express nem MSAL ao Dashboard, e não publica nada de verdade — "Exportar pacote Demo" gera só um arquivo JSON local. O Test Drive, a autenticação Microsoft, os times reais e todos os editores existentes continuam exatamente como estavam.
+
+Validação desta entrega: **173 testes Vitest aprovados em 19 arquivos**; TypeScript e build de produção também validados. Detalhes completos em [`docs/spec/07-DASHBOARD-WORKSPACE-DEMO-LOCAL.md`](docs/spec/07-DASHBOARD-WORKSPACE-DEMO-LOCAL.md).
 
 ## Novidades da 1.11.0
 
@@ -66,6 +78,7 @@ npm run dev -- --host 0.0.0.0
 | `npm run build` | Build de produção |
 | `npm run fixtures` | Regenera as fixtures fictícias sanitizadas |
 | `npm run analyze -- <arquivo>` | Executa o parser da aplicação diretamente em um arquivo real |
+| `ESCALAICI_KMP_ROOT=/caminho npm run demo:sync` | Sincroniza o espelho do workspace Demo (`demo-v1`) a partir do repositório EscalaICI-KMP-Lab |
 
 Validação desta entrega: **110 testes Vitest e 7 testes de Firestore Rules aprovados**, TypeScript aprovado e build Vite concluído.
 
@@ -203,6 +216,15 @@ src/lib/assignments.ts            classificação e sequência de trabalho deriv
 src/components/SocPlanner.tsx     Planejador SOC e situações especiais
 tests/                            testes automatizados
 scripts/analyze-file.mjs          análise direta dos arquivos
+scripts/sync-demo-v1.mjs          sincroniza o espelho do workspace Demo (demo-v1)
+fixtures/demo/                    espelho gerado do pacote Demo (não editar à mão)
+contracts/                        contrato JSON do pacote Demo (mesmo do EscalaICI-KMP-Lab)
+src/lib/demoWorkspace/            DTOs, validação e adapters do workspace Demo
+src/hooks/useDemoWorkspace.ts     estado (baseline/rascunho/revisão) do workspace Demo
+src/components/DemoWorkspaceBanner.tsx          aviso permanente do Ambiente de Demonstração
+src/components/DemoScenarioSummary.tsx          resumo compacto e prévia de diferenças
+src/components/DemoManagerAssignmentsDialog.tsx edição local de responsáveis e aprovações
+src/components/DemoChangeRequestsDialog.tsx     solicitações Demo (somente leitura)
 ```
 
 Os resultados completos estão em [`RELATORIO_VALIDACAO.md`](RELATORIO_VALIDACAO.md).
