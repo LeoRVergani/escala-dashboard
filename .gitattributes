@@ -1,0 +1,5 @@
+
+# Artefatos canônicos Demo: preservar LF e checksum entre Linux e Windows
+fixtures/demo/demo-v1-publication-package.json text eol=lf
+fixtures/demo/demo-v1-manifest.json text eol=lf
+contracts/organization-approval-v1.schema.json text eol=lf
