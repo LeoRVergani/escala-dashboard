@@ -3,6 +3,7 @@ import cors from 'cors';
 import express from 'express';
 import { PublicationError } from './errors.mjs';
 import { getFirebaseAdmin as defaultGetFirebaseAdmin } from './infra/firebaseAdmin.mjs';
+import { createDemoResetRouter } from './routes/demoReset.mjs';
 import { createDemoStatusRouter } from './routes/demoStatus.mjs';
 import { createHealthRouter } from './routes/health.mjs';
 import { createPublishRouter } from './routes/publish.mjs';
@@ -42,6 +43,7 @@ export function createApp(config, overrides = {}) {
     getFirebaseAdmin: overrides.getFirebaseAdmin ?? defaultGetFirebaseAdmin,
     config,
     store: overrides.store,
+    loadDemoFixture: overrides.loadDemoFixture,
   };
 
   app.use((req, res, next) => {
@@ -66,6 +68,7 @@ export function createApp(config, overrides = {}) {
 
   app.use('/api/health', createHealthRouter());
   app.use('/api/demo/status', createDemoStatusRouter(routeDependencies));
+  app.use('/api/demo/reset', createDemoResetRouter(routeDependencies));
   app.use('/api/publish', createPublishRouter(routeDependencies));
 
   app.use((req, res) => {

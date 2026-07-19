@@ -2,23 +2,11 @@ import { Router } from 'express';
 import { assertDemoOnlyWritePlan } from '../domain/assertDemoOnlyWritePlan.mjs';
 import { validateDemoPackage } from '../domain/demoPackageValidator.mjs';
 import { buildPublicationPlan } from '../domain/demoPublicationPlanner.mjs';
+import { executeAtomicPublication } from '../domain/executeAtomicPublication.mjs';
 import { PublicationError } from '../errors.mjs';
-import { createFirestorePublicationStore } from '../infra/firestorePublicationStore.mjs';
+import { resolvePublicationStore } from '../infra/resolvePublicationStore.mjs';
 
 const DEMO_WORKSPACE_ID = 'demo-v1';
-
-function createStore({ getFirebaseAdmin, config, store }) {
-  if (store) {
-    return { configured: true, store };
-  }
-
-  const firebaseAdmin = getFirebaseAdmin(config);
-  if (!firebaseAdmin.configured) {
-    return { configured: false, store: null };
-  }
-
-  return { configured: true, store: createFirestorePublicationStore(firebaseAdmin.db) };
-}
 
 export function createPublishRouter({ getFirebaseAdmin, config, store }) {
   const router = Router();
@@ -60,25 +48,40 @@ export function createPublishRouter({ getFirebaseAdmin, config, store }) {
           throw new PublicationError('INVALID_PACKAGE', 'idempotencyKey é obrigatório para publicar.');
         }
 
-        const resolved = createStore({ getFirebaseAdmin, config, store });
+        const resolved = resolvePublicationStore({ getFirebaseAdmin, config, store });
         if (!resolved.configured) {
           throw new PublicationError('FIREBASE_ADMIN_NOT_CONFIGURED', 'Firebase Admin não está configurado.');
         }
 
-        const reservation = await resolved.store.reserveRevision(
-          DEMO_WORKSPACE_ID,
-          req.body.expectedActiveRevision ?? 0,
+        const result = await executeAtomicPublication({
+          store: resolved.store,
+          workspaceId: DEMO_WORKSPACE_ID,
+          expectedActiveRevision: req.body.expectedActiveRevision ?? 0,
           idempotencyKey,
-          {
+          meta: {
             publishedByMode: 'COMMIT',
             source: 'DASHBOARD_MANUAL_PUBLISH',
             dryRun: false,
             schemaVersion: 1,
           },
-        );
+          package: validation.package,
+          writeFailureCode: 'FIRESTORE_WRITE_FAILED',
+          writeFailureMessage: 'Não foi possível gravar os documentos da nova revisão.',
+          activationFailureCode: 'PUBLICATION_ACTIVATION_FAILED',
+          activationFailureMessage: 'A revisão foi preparada mas não pôde ser ativada. A revisão anterior continua ativa.',
+          onFailureLog: ({ workspaceId, revision, errorMessage, errorCode }) => {
+            console.error('demo_publish_commit_failed', {
+              requestId: req.requestId,
+              workspaceId,
+              revision,
+              errorMessage,
+              errorCode,
+            });
+          },
+        });
 
-        if (reservation.outcome === 'ALREADY_ACTIVE') {
-          const { record } = reservation;
+        if (result.outcome === 'ALREADY_ACTIVE') {
+          const { record } = result;
           res.status(200).json({
             status: 'PUBLISHED',
             workspaceId: DEMO_WORKSPACE_ID,
@@ -90,75 +93,18 @@ export function createPublishRouter({ getFirebaseAdmin, config, store }) {
           return;
         }
 
-        const { nextRevision } = reservation;
-
-        const plan = buildPublicationPlan({
-          package: validation.package,
-          currentActiveRevision: nextRevision - 1,
-        });
-        assertDemoOnlyWritePlan(plan);
-
-        let writeCounts;
-        try {
-          writeCounts = await resolved.store.writeRevisionDocuments(plan);
-        } catch (err) {
-          console.error('demo_publish_commit_failed', {
-            requestId: req.requestId,
-            workspaceId: DEMO_WORKSPACE_ID,
-            revision: nextRevision,
-            errorMessage: err?.message,
-            errorCode: err?.code,
-          });
-          await resolved.store.markPublicationFailed(
-            DEMO_WORKSPACE_ID,
-            nextRevision,
-            'Falha ao gravar documentos da revisão.',
-          );
-          throw new PublicationError(
-            'FIRESTORE_WRITE_FAILED',
-            'Não foi possível gravar os documentos da nova revisão.',
-          );
-        }
-
-        let activated;
-        try {
-          activated = await resolved.store.activateRevision(
-            DEMO_WORKSPACE_ID,
-            nextRevision,
-            plan.workspaceActivationWrite.data,
-            writeCounts,
-          );
-        } catch (err) {
-          console.error('demo_publish_commit_failed', {
-            requestId: req.requestId,
-            workspaceId: DEMO_WORKSPACE_ID,
-            revision: nextRevision,
-            errorMessage: err?.message,
-            errorCode: err?.code,
-          });
-          await resolved.store.markPublicationFailed(
-            DEMO_WORKSPACE_ID,
-            nextRevision,
-            'Falha ao ativar a nova revisão.',
-          );
-          throw new PublicationError(
-            'PUBLICATION_ACTIVATION_FAILED',
-            'A revisão foi preparada mas não pôde ser ativada. A revisão anterior continua ativa.',
-          );
-        }
-
         res.status(200).json({
           status: 'PUBLISHED',
           workspaceId: DEMO_WORKSPACE_ID,
-          publicationRevision: nextRevision,
-          counts: writeCounts,
-          publishedAt: activated.publishedAt,
+          publicationRevision: result.nextRevision,
+          counts: result.counts,
+          publishedAt: result.publishedAt,
           idempotencyKey,
         });
         return;
       }
 
-      const resolved = createStore({ getFirebaseAdmin, config, store });
+      const resolved = resolvePublicationStore({ getFirebaseAdmin, config, store });
       if (!resolved.configured) {
         throw new PublicationError('FIREBASE_ADMIN_NOT_CONFIGURED', 'Firebase Admin não está configurado.');
       }
