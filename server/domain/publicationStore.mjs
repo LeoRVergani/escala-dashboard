@@ -3,17 +3,20 @@
  * @property {(workspaceId: string) => Promise<object>} getWorkspaceStatus
  * Retorna `{ exists: true, publicationRevision, workspaceType, scenarioId, seedVersion, updatedAt }`
  * quando existir, ou `{ exists: false, publicationRevision: 0 }` quando nunca publicado.
- * @property {(workspaceId: string, revision: number, meta: object) => Promise<object>} reserveRevision
- * Cria `publication_records/{workspaceId_revision}` com status `PREPARING` e os campos de meta recebidos.
+ * @property {(workspaceId: string, expectedActiveRevision: number, idempotencyKey: string, meta: object) => Promise<object>} reserveRevision
+ * Reserva atomicamente a próxima revisão ou retorna uma publicação ACTIVE existente pela chave de idempotência.
  * @property {(plan: object) => Promise<{ countsCreated: number, countsUpdated: number }>} writeRevisionDocuments
  * Grava todas as entidades do plano.
- * @property {(workspaceId: string, revision: number, workspaceData: object) => Promise<object>} activateRevision
- * Atualiza `workspaces/{workspaceId}` e marca o registro da publicação como `ACTIVE`.
+ * @property {(workspaceId: string, revision: number, workspaceData: object, counts?: object) => Promise<object>} activateRevision
+ * Atualiza `workspaces/{workspaceId}` e marca o registro da publicação como `ACTIVE`, gravando `counts` no
+ * registro para que uma repetição por idempotencyKey possa devolver a mesma resposta sem recalcular nada.
  * @property {(workspaceId: string, revision: number, reason: string) => Promise<object>} markPublicationFailed
  * Marca o registro da publicação como `FAILED`, guardando `failureReason` sem stack trace.
  * @property {(workspaceId: string, idempotencyKey: string) => Promise<object | null>} findByIdempotencyKey
  * Procura uma publicação existente pela chave de idempotência no workspace informado.
  */
+
+import { PublicationError } from '../errors.mjs';
 
 function publicationRecordId(workspaceId, revision) {
   return `${workspaceId}_${revision}`;
@@ -53,17 +56,64 @@ export function createInMemoryPublicationStore() {
       };
     },
 
-    async reserveRevision(workspaceId, revision, meta) {
-      const id = publicationRecordId(workspaceId, revision);
+    async reserveRevision(workspaceId, expectedActiveRevision, idempotencyKey, meta) {
+      for (const record of publicationRecords.values()) {
+        if (record.workspaceId !== workspaceId || record.idempotencyKey !== idempotencyKey) {
+          continue;
+        }
+
+        if (record.status === 'ACTIVE') {
+          return { outcome: 'ALREADY_ACTIVE', record: clone(record) };
+        }
+
+        if (record.status === 'PREPARING') {
+          throw new PublicationError(
+            'IDEMPOTENCY_CONFLICT',
+            'Já existe uma publicação em andamento com esta chave de idempotência.',
+          );
+        }
+      }
+
+      const currentRevision = workspaces.get(workspaceId)?.publicationRevision ?? 0;
+      if (currentRevision !== expectedActiveRevision) {
+        throw new PublicationError(
+          'PUBLICATION_REVISION_CONFLICT',
+          `Revisão ativa esperada ${expectedActiveRevision}, mas a revisão real é ${currentRevision}.`,
+          {
+            details: {
+              expectedActiveRevision,
+              actualActiveRevision: currentRevision,
+            },
+          },
+        );
+      }
+
+      const nextRevision = currentRevision + 1;
+      const id = publicationRecordId(workspaceId, nextRevision);
+      if (publicationRecords.has(id)) {
+        throw new PublicationError(
+          'PUBLICATION_REVISION_CONFLICT',
+          `Revisão ativa esperada ${expectedActiveRevision}, mas a revisão real é ${currentRevision}.`,
+          {
+            details: {
+              expectedActiveRevision,
+              actualActiveRevision: currentRevision,
+            },
+          },
+        );
+      }
+
       const record = {
         id,
         workspaceId,
-        publicationRevision: revision,
+        publicationRevision: nextRevision,
+        idempotencyKey,
         ...clone(meta),
         status: 'PREPARING',
+        publishedAt: null,
       };
       publicationRecords.set(id, record);
-      return clone(record);
+      return { outcome: 'RESERVED', nextRevision, recordId: id };
     },
 
     async writeRevisionDocuments(plan) {
@@ -84,7 +134,15 @@ export function createInMemoryPublicationStore() {
       return { countsCreated, countsUpdated };
     },
 
-    async activateRevision(workspaceId, revision, workspaceData) {
+    async activateRevision(workspaceId, revision, workspaceData, counts) {
+      const currentRevision = workspaces.get(workspaceId)?.publicationRevision ?? 0;
+      if (currentRevision !== revision - 1) {
+        throw new PublicationError(
+          'PUBLICATION_ACTIVATION_FAILED',
+          'A revisão ativa mudou de forma inesperada antes da ativação.',
+        );
+      }
+
       const workspace = {
         ...clone(workspaceData),
         workspaceId,
@@ -97,6 +155,7 @@ export function createInMemoryPublicationStore() {
       const existing = publicationRecords.get(id) ?? { id, workspaceId, publicationRevision: revision };
       const record = {
         ...existing,
+        ...(counts ? { counts: clone(counts) } : {}),
         status: 'ACTIVE',
         publishedAt: new Date().toISOString(),
       };

@@ -64,7 +64,6 @@ export function buildPublicationPlan({ package: pkg, currentActiveRevision }) {
         id: publicationRecordId,
         workspaceId: WORKSPACE_ID,
         publicationRevision: expectedNextRevision,
-        publishedByMode: 'LOCAL_TEST_MODE',
         dryRun: false,
         countsCreated: entityWrites.length,
         countsUpdated: 0,

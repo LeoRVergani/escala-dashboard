@@ -1,4 +1,5 @@
-import admin from 'firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
+import { PublicationError } from '../errors.mjs';
 
 const MAX_BATCH_WRITES = 400;
 
@@ -13,6 +14,14 @@ function collectionDoc(db, collection, id) {
 async function readDocumentData(ref) {
   const snap = await ref.get();
   return snap.exists ? snap.data() : null;
+}
+
+// Códigos gRPC/Firestore que indicam contenção real (duas transações disputando o mesmo
+// documento), distintos de falhas de rede/permissão/índice que não devem virar 409.
+const CONCURRENCY_ERROR_CODES = new Set([6, 9, 10, 'already-exists', 'aborted', 'failed-precondition']);
+
+function isLikelyConcurrencyError(err) {
+  return CONCURRENCY_ERROR_CODES.has(err?.code);
 }
 
 export function createFirestorePublicationStore(db) {
@@ -33,19 +42,91 @@ export function createFirestorePublicationStore(db) {
       };
     },
 
-    async reserveRevision(workspaceId, revision, meta) {
-      const id = publicationRecordId(workspaceId, revision);
-      const record = {
-        id,
-        workspaceId,
-        publicationRevision: revision,
-        ...meta,
-        status: 'PREPARING',
-        publishedAt: null,
-      };
+    async reserveRevision(workspaceId, expectedActiveRevision, idempotencyKey, meta) {
+      try {
+        return await db.runTransaction(async (tx) => {
+          const workspaceRef = collectionDoc(db, 'workspaces', workspaceId);
+          const idempotencyQuery = db
+            .collection('publication_records')
+            .where('workspaceId', '==', workspaceId)
+            .where('idempotencyKey', '==', idempotencyKey)
+            .limit(1);
+          const [workspaceSnap, idempotencySnap] = await Promise.all([
+            tx.get(workspaceRef),
+            tx.get(idempotencyQuery),
+          ]);
 
-      await collectionDoc(db, 'publication_records', id).set(record);
-      return record;
+          if (!idempotencySnap.empty) {
+            const record = idempotencySnap.docs[0].data();
+            if (record.status === 'ACTIVE') {
+              return { outcome: 'ALREADY_ACTIVE', record };
+            }
+
+            if (record.status === 'PREPARING') {
+              throw new PublicationError(
+                'IDEMPOTENCY_CONFLICT',
+                'Já existe uma publicação em andamento com esta chave de idempotência.',
+              );
+            }
+          }
+
+          const currentRevision = workspaceSnap.exists
+            ? (workspaceSnap.data()?.publicationRevision ?? 0)
+            : 0;
+          if (currentRevision !== expectedActiveRevision) {
+            throw new PublicationError(
+              'PUBLICATION_REVISION_CONFLICT',
+              `Revisão ativa esperada ${expectedActiveRevision}, mas a revisão real é ${currentRevision}.`,
+              {
+                details: {
+                  expectedActiveRevision,
+                  actualActiveRevision: currentRevision,
+                },
+              },
+            );
+          }
+
+          const nextRevision = currentRevision + 1;
+          const recordId = publicationRecordId(workspaceId, nextRevision);
+          tx.create(collectionDoc(db, 'publication_records', recordId), {
+            id: recordId,
+            workspaceId,
+            publicationRevision: nextRevision,
+            idempotencyKey,
+            ...meta,
+            status: 'PREPARING',
+            publishedAt: null,
+          });
+
+          return { outcome: 'RESERVED', nextRevision, recordId };
+        });
+      } catch (err) {
+        if (err instanceof PublicationError) {
+          throw err;
+        }
+
+        if (isLikelyConcurrencyError(err)) {
+          throw new PublicationError(
+            'PUBLICATION_REVISION_CONFLICT',
+            `Revisão ativa esperada ${expectedActiveRevision}, mas a revisão real mudou antes da reserva.`,
+            {
+              details: {
+                expectedActiveRevision,
+              },
+            },
+          );
+        }
+
+        console.error('demo_publish_reserve_failed', {
+          workspaceId,
+          errorMessage: err?.message,
+          errorCode: err?.code,
+        });
+        throw new PublicationError(
+          'FIRESTORE_WRITE_FAILED',
+          'Não foi possível reservar a próxima revisão de publicação.',
+        );
+      }
     },
 
     async writeRevisionDocuments(plan) {
@@ -68,25 +149,56 @@ export function createFirestorePublicationStore(db) {
       return { countsCreated: 0, countsUpdated: plan.entityWrites.length };
     },
 
-    async activateRevision(workspaceId, revision, workspaceData) {
+    async activateRevision(workspaceId, revision, workspaceData, counts) {
       const workspaceRef = collectionDoc(db, 'workspaces', workspaceId);
       const recordRef = collectionDoc(db, 'publication_records', publicationRecordId(workspaceId, revision));
 
       await db.runTransaction(async (tx) => {
+        const workspaceSnap = await tx.get(workspaceRef);
+        const currentRevision = workspaceSnap.exists
+          ? (workspaceSnap.data()?.publicationRevision ?? 0)
+          : 0;
+        if (currentRevision !== revision - 1) {
+          throw new PublicationError(
+            'PUBLICATION_ACTIVATION_FAILED',
+            'A revisão ativa mudou de forma inesperada antes da ativação.',
+          );
+        }
+
         tx.set(workspaceRef, {
           ...workspaceData,
           workspaceId,
           publicationRevision: revision,
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         }, { merge: true });
 
         tx.set(recordRef, {
+          ...(counts ? { counts } : {}),
           status: 'ACTIVE',
-          publishedAt: admin.firestore.FieldValue.serverTimestamp(),
+          publishedAt: FieldValue.serverTimestamp(),
         }, { merge: true });
       });
 
-      return readDocumentData(recordRef);
+      // A transação já confirmou a ativação neste ponto. Uma falha na releitura abaixo não
+      // pode virar "falha de ativação" - isso marcaria como FAILED uma revisão já ativa.
+      try {
+        return await readDocumentData(recordRef);
+      } catch (err) {
+        console.error('demo_publish_activate_readback_failed', {
+          workspaceId,
+          revision,
+          errorMessage: err?.message,
+          errorCode: err?.code,
+        });
+        return {
+          id: recordRef.id,
+          workspaceId,
+          publicationRevision: revision,
+          status: 'ACTIVE',
+          publishedAt: null,
+          ...(counts ? { counts } : {}),
+        };
+      }
     },
 
     async markPublicationFailed(workspaceId, revision, reason) {

@@ -29,15 +29,12 @@ describe('createInMemoryPublicationStore', () => {
       publicationRevision: 0,
     });
 
-    await expect(store.reserveRevision('demo-v1', 1, {
-      idempotencyKey: 'idem-1',
+    await expect(store.reserveRevision('demo-v1', 0, 'idem-1', {
       source: 'DASHBOARD_MANUAL_PUBLISH',
     })).resolves.toMatchObject({
-      id: 'demo-v1_1',
-      workspaceId: 'demo-v1',
-      publicationRevision: 1,
-      idempotencyKey: 'idem-1',
-      status: 'PREPARING',
+      outcome: 'RESERVED',
+      nextRevision: 1,
+      recordId: 'demo-v1_1',
     });
 
     await expect(store.writeRevisionDocuments(plan)).resolves.toEqual({
@@ -75,9 +72,9 @@ describe('createInMemoryPublicationStore', () => {
     const store = createInMemoryPublicationStore();
     const plan = buildPublicationPlan({ package: tinyPackage(), currentActiveRevision: null });
 
-    await store.reserveRevision('demo-v1', 1, { idempotencyKey: 'idem-1' });
+    await store.reserveRevision('demo-v1', 0, 'idem-1', {});
     await store.activateRevision('demo-v1', 1, plan.workspaceActivationWrite.data);
-    await store.reserveRevision('demo-v1', 2, { idempotencyKey: 'idem-2' });
+    await store.reserveRevision('demo-v1', 1, 'idem-2', {});
 
     await expect(store.markPublicationFailed('demo-v1', 2, 'falha controlada')).resolves.toMatchObject({
       id: 'demo-v1_2',

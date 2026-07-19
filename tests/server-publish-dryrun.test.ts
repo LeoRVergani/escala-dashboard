@@ -374,15 +374,15 @@ describe('POST /api/publish DRY_RUN', () => {
     });
   });
 
-  it('retorna erro claro para mode COMMIT ainda nao implementado', async () => {
+  it('bloqueia mode COMMIT quando a escrita demo nao esta habilitada', async () => {
     const store = createInMemoryPublicationStore();
     const testServer = await startTestServer(store);
 
     const response = await postPublish(testServer, publishBody({ mode: 'COMMIT' }));
     const body = await response.json();
 
-    expect(response.status).toBe(503);
-    expect(body.error.code).toBe('API_UNAVAILABLE');
+    expect(response.status).toBe(403);
+    expect(body.error.code).toBe('DEMO_WRITE_DISABLED');
   });
 
   it('rejeita mode invalido ou ausente', async () => {

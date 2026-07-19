@@ -44,8 +44,118 @@ export function createPublishRouter({ getFirebaseAdmin, config, store }) {
       }
 
       if (mode === 'COMMIT') {
-        // TODO checkpoint 4
-        throw new PublicationError('API_UNAVAILABLE', 'Modo COMMIT ainda não implementado nesta etapa - use DRY_RUN.');
+        if (config.allowDemoFirestoreWrite !== true) {
+          throw new PublicationError(
+            'DEMO_WRITE_DISABLED',
+            'A escrita no Firestore está desabilitada (ALLOW_DEMO_FIRESTORE_WRITE não é true).',
+          );
+        }
+
+        if (req.body?.confirmation !== 'PUBLISH DEMO demo-v1') {
+          throw new PublicationError('INVALID_CONFIRMATION', 'Frase de confirmação ausente ou incorreta.');
+        }
+
+        const idempotencyKey = req.body?.idempotencyKey;
+        if (typeof idempotencyKey !== 'string' || idempotencyKey.trim() === '') {
+          throw new PublicationError('INVALID_PACKAGE', 'idempotencyKey é obrigatório para publicar.');
+        }
+
+        const resolved = createStore({ getFirebaseAdmin, config, store });
+        if (!resolved.configured) {
+          throw new PublicationError('FIREBASE_ADMIN_NOT_CONFIGURED', 'Firebase Admin não está configurado.');
+        }
+
+        const reservation = await resolved.store.reserveRevision(
+          DEMO_WORKSPACE_ID,
+          req.body.expectedActiveRevision ?? 0,
+          idempotencyKey,
+          {
+            publishedByMode: 'COMMIT',
+            source: 'DASHBOARD_MANUAL_PUBLISH',
+            dryRun: false,
+            schemaVersion: 1,
+          },
+        );
+
+        if (reservation.outcome === 'ALREADY_ACTIVE') {
+          const { record } = reservation;
+          res.status(200).json({
+            status: 'PUBLISHED',
+            workspaceId: DEMO_WORKSPACE_ID,
+            publicationRevision: record.publicationRevision,
+            counts: record.counts,
+            publishedAt: record.publishedAt,
+            idempotencyKey: record.idempotencyKey,
+          });
+          return;
+        }
+
+        const { nextRevision } = reservation;
+
+        const plan = buildPublicationPlan({
+          package: validation.package,
+          currentActiveRevision: nextRevision - 1,
+        });
+        assertDemoOnlyWritePlan(plan);
+
+        let writeCounts;
+        try {
+          writeCounts = await resolved.store.writeRevisionDocuments(plan);
+        } catch (err) {
+          console.error('demo_publish_commit_failed', {
+            requestId: req.requestId,
+            workspaceId: DEMO_WORKSPACE_ID,
+            revision: nextRevision,
+            errorMessage: err?.message,
+            errorCode: err?.code,
+          });
+          await resolved.store.markPublicationFailed(
+            DEMO_WORKSPACE_ID,
+            nextRevision,
+            'Falha ao gravar documentos da revisão.',
+          );
+          throw new PublicationError(
+            'FIRESTORE_WRITE_FAILED',
+            'Não foi possível gravar os documentos da nova revisão.',
+          );
+        }
+
+        let activated;
+        try {
+          activated = await resolved.store.activateRevision(
+            DEMO_WORKSPACE_ID,
+            nextRevision,
+            plan.workspaceActivationWrite.data,
+            writeCounts,
+          );
+        } catch (err) {
+          console.error('demo_publish_commit_failed', {
+            requestId: req.requestId,
+            workspaceId: DEMO_WORKSPACE_ID,
+            revision: nextRevision,
+            errorMessage: err?.message,
+            errorCode: err?.code,
+          });
+          await resolved.store.markPublicationFailed(
+            DEMO_WORKSPACE_ID,
+            nextRevision,
+            'Falha ao ativar a nova revisão.',
+          );
+          throw new PublicationError(
+            'PUBLICATION_ACTIVATION_FAILED',
+            'A revisão foi preparada mas não pôde ser ativada. A revisão anterior continua ativa.',
+          );
+        }
+
+        res.status(200).json({
+          status: 'PUBLISHED',
+          workspaceId: DEMO_WORKSPACE_ID,
+          publicationRevision: nextRevision,
+          counts: writeCounts,
+          publishedAt: activated.publishedAt,
+          idempotencyKey,
+        });
+        return;
       }
 
       const resolved = createStore({ getFirebaseAdmin, config, store });

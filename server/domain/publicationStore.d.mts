@@ -7,11 +7,27 @@ export type WorkspaceStatus = {
   updatedAt?: string;
 };
 
+export type ReserveRevisionResult =
+  | {
+    outcome: 'RESERVED';
+    nextRevision: number;
+    recordId: string;
+  }
+  | {
+    outcome: 'ALREADY_ACTIVE';
+    record: Record<string, unknown>;
+  };
+
 export type InMemoryPublicationStore = {
   getWorkspaceStatus(workspaceId: string): Promise<WorkspaceStatus>;
-  reserveRevision(workspaceId: string, revision: number, meta: Record<string, unknown>): Promise<Record<string, unknown>>;
+  reserveRevision(
+    workspaceId: string,
+    expectedActiveRevision: number,
+    idempotencyKey: string,
+    meta: Record<string, unknown>,
+  ): Promise<ReserveRevisionResult>;
   writeRevisionDocuments(plan: { entityWrites: Array<{ collection: string; id: string; data: Record<string, unknown> }> }): Promise<{ countsCreated: number; countsUpdated: number }>;
-  activateRevision(workspaceId: string, revision: number, workspaceData: Record<string, unknown>): Promise<Record<string, unknown>>;
+  activateRevision(workspaceId: string, revision: number, workspaceData: Record<string, unknown>, counts?: { countsCreated: number; countsUpdated: number }): Promise<Record<string, unknown>>;
   markPublicationFailed(workspaceId: string, revision: number, reason: string): Promise<Record<string, unknown>>;
   findByIdempotencyKey(workspaceId: string, idempotencyKey: string): Promise<Record<string, unknown> | null>;
 };
