@@ -41,6 +41,9 @@ import { ConflictAlertsPanel } from './components/ConflictAlertsPanel';
 import { FirebaseDashboardBar } from './components/FirebaseDashboardBar';
 import { DemoWorkspaceBanner } from './components/DemoWorkspaceBanner';
 import { DemoScenarioSummary } from './components/DemoScenarioSummary';
+import { DemoPublicationPanel } from './components/DemoPublicationPanel';
+import { DemoPublishDialog } from './components/DemoPublishDialog';
+import { DemoRemoteResetDialog } from './components/DemoRemoteResetDialog';
 import { DemoChangeRequestsDialog } from './components/DemoChangeRequestsDialog';
 import { PublicationDialog } from './components/PublicationDialog';
 import { SwapRequestsDialog } from './components/SwapRequestsDialog';
@@ -52,6 +55,9 @@ import { buildDemoWorkspaceExport, demoWorkspaceExportFileName } from './lib/dem
 import { moveSocAssignment, removeSocAssignment, updateSocAssignment, type SocShiftId } from './lib/socPlanner';
 import { useFirebaseDashboard } from './hooks/useFirebaseDashboard';
 import { useDemoWorkspace } from './hooks/useDemoWorkspace';
+import { useDemoRemotePublication, type DemoValidationResult } from './hooks/useDemoRemotePublication';
+import type { DemoWorkspaceDiff } from './lib/demoWorkspace/diff';
+import type { DemoPublicationPackage } from './lib/demoWorkspace/dto';
 import { signInWithMicrosoft, signOutDashboard } from './lib/authRepository';
 import { buildPublicationPreview, type PublicationPreview } from './lib/publicationPreview';
 import { publishStructuredSchedule, type PublicationMode } from './lib/schedulePublishRepository';
@@ -87,6 +93,7 @@ export default function App() {
   const firebaseDashboard = useFirebaseDashboard();
   const demoWorkspace = useDemoWorkspace();
   const schedule = history.state;
+  const demoRemotePublication = useDemoRemotePublication(schedule?.origin === 'demo-workspace-package');
   const [n1Layer, setN1Layer] = useState<ServiceDeskN1Layer>('principal');
   const [pending, setPending] = useState<PendingImport | null>(null);
   const [selection, setSelection] = useState<Set<CellKey>>(new Set());
@@ -107,6 +114,18 @@ export default function App() {
   const [showTeamDialog, setShowTeamDialog] = useState(false);
   const [showDemoManagerAssignmentsDialog, setShowDemoManagerAssignmentsDialog] = useState(false);
   const [showDemoChangeRequestsDialog, setShowDemoChangeRequestsDialog] = useState(false);
+  const [showDemoPublishDialog, setShowDemoPublishDialog] = useState(false);
+  const [showDemoRemoteResetDialog, setShowDemoRemoteResetDialog] = useState(false);
+  // Snapshot congelado no momento da validação: o modal de confirmação e o publish() de fato
+  // enviado usam SEMPRE estes valores, nunca o estado "vivo" de demoWorkspace/diff - evita que
+  // uma edição no rascunho entre "Validar" e "Publicar" deixe o modal (ou o COMMIT) desalinhado
+  // com o que foi de fato validado.
+  const [demoPublishSnapshot, setDemoPublishSnapshot] = useState<{
+    draftPackage: DemoPublicationPackage;
+    localDraftRevision: number;
+    validation: DemoValidationResult;
+    diff: DemoWorkspaceDiff | null;
+  } | null>(null);
   const [firebaseBusy, setFirebaseBusy] = useState(false);
   const [templateWizardMode, setTemplateWizardMode] = useState<'empty' | 'demo' | null>(null);
   const demoWorkspaceState = demoWorkspace.state;
@@ -203,6 +222,48 @@ export default function App() {
     URL.revokeObjectURL(url);
     notify('Pacote Demo exportado.');
   }, [demoWorkspace, notify]);
+
+  const validateDemoPublication = useCallback(async () => {
+    const current = demoWorkspace.state;
+    if (!current) return;
+    await demoRemotePublication.validate(current.draftPackage, current.localDraftRevision);
+  }, [demoWorkspace, demoRemotePublication]);
+
+  const openDemoPublishDialog = useCallback(async () => {
+    if (demoRemotePublication.busy !== 'IDLE') return;
+    const current = demoWorkspace.state;
+    if (!current) return;
+    // Revalida o rascunho ATUAL antes de abrir o modal - o usuário pode ter editado a grade
+    // depois do último clique em "Validar publicação". O objeto retornado (não o estado
+    // `validation` do hook) vira o snapshot congelado do modal/publish, para que nenhuma
+    // edição feita enquanto o modal está aberto altere o que de fato será publicado.
+    const validation = await demoRemotePublication.validate(current.draftPackage, current.localDraftRevision);
+    if (!validation) return;
+    setDemoPublishSnapshot({
+      draftPackage: current.draftPackage,
+      localDraftRevision: current.localDraftRevision,
+      validation,
+      diff: demoWorkspaceDiff,
+    });
+    setShowDemoPublishDialog(true);
+  }, [demoWorkspace, demoRemotePublication, demoWorkspaceDiff]);
+
+  const confirmDemoPublication = useCallback(async () => {
+    const snapshot = demoPublishSnapshot;
+    if (!snapshot) return;
+    const result = await demoRemotePublication.publish(snapshot.draftPackage, snapshot.localDraftRevision);
+    if (!result.ok) return;
+    setShowDemoPublishDialog(false);
+    setDemoPublishSnapshot(null);
+    notify(`Ambiente de Demonstração publicado na revisão ${result.publicationRevision}.`);
+  }, [demoPublishSnapshot, demoRemotePublication, notify]);
+
+  const confirmDemoRemoteReset = useCallback(async () => {
+    const result = await demoRemotePublication.resetRemote();
+    if (!result.ok) return;
+    setShowDemoRemoteResetDialog(false);
+    notify('Demo publicado restaurado no Firebase.');
+  }, [demoRemotePublication, notify]);
 
   const loadDemoWorkspace = useCallback(async () => {
     const loaded = await demoWorkspace.load({ resumePersisted: true });
@@ -968,6 +1029,21 @@ export default function App() {
               diff={demoWorkspaceDiff}
             />
           )}
+          {demoWorkspaceState && (
+            <DemoPublicationPanel
+              draftPackage={demoWorkspaceState.draftPackage}
+              localDraftRevision={demoWorkspaceState.localDraftRevision}
+              dirty={demoWorkspaceState.dirty}
+              backendStatus={demoRemotePublication.backendStatus}
+              firebaseAdminStatus={demoRemotePublication.firebaseAdminStatus}
+              validation={demoRemotePublication.validation}
+              busy={demoRemotePublication.busy}
+              lastError={demoRemotePublication.lastError}
+              onValidate={() => void validateDemoPublication()}
+              onPublishClick={() => void openDemoPublishDialog()}
+              onResetClick={() => setShowDemoRemoteResetDialog(true)}
+            />
+          )}
           <div className="demo-workspace-controls" aria-label="Controles do Ambiente de Demonstração">
             <div className="demo-workspace-tabs" role="tablist" aria-label="Times do Ambiente de Demonstração">
               {demoTeams.map((team) => (
@@ -1326,6 +1402,29 @@ export default function App() {
         <DemoChangeRequestsDialog
           pkg={demoWorkspace.state.draftPackage}
           onClose={() => setShowDemoChangeRequestsDialog(false)}
+        />
+      )}
+      {showDemoPublishDialog && demoPublishSnapshot && (
+        <DemoPublishDialog
+          draftPackage={demoPublishSnapshot.draftPackage}
+          validation={demoPublishSnapshot.validation}
+          diff={demoPublishSnapshot.diff}
+          busy={demoRemotePublication.busy}
+          lastError={demoRemotePublication.lastError}
+          onCancel={() => {
+            setShowDemoPublishDialog(false);
+            setDemoPublishSnapshot(null);
+          }}
+          onPublish={() => void confirmDemoPublication()}
+        />
+      )}
+      {showDemoRemoteResetDialog && (
+        <DemoRemoteResetDialog
+          firebaseAdminStatus={demoRemotePublication.firebaseAdminStatus}
+          busy={demoRemotePublication.busy}
+          lastError={demoRemotePublication.lastError}
+          onCancel={() => setShowDemoRemoteResetDialog(false)}
+          onReset={() => void confirmDemoRemoteReset()}
         />
       )}
       {showTeamDialog && firebaseDashboard.user?.isSystemAdmin && <TeamDialog onCancel={() => setShowTeamDialog(false)} onSave={(team: Team) => {

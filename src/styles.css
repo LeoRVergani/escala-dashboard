@@ -143,8 +143,8 @@ input, select { font: inherit; }
 .firebase-bar { display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:7px 16px;border-bottom:1px solid var(--line);background:#eef6f4; }
 .firebase-bar label { display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700; }.firebase-bar select { min-width:150px;max-width:240px;padding:6px;border:1px solid var(--line-strong);border-radius:6px;background:#fff; }
 .firebase-user { font-size:12px;color:#315d56;font-weight:700; }.firebase-error { flex-basis:100%;color:var(--danger);font-size:12px; }
-.publication-dialog,.swap-dialog,.team-dialog,.demo-manager-dialog,.demo-requests-dialog { width:min(680px,100%);max-height:calc(100vh - 32px);overflow:auto;padding:20px;border-radius:11px;background:#fff;box-shadow:var(--shadow); }
-.publication-dialog h2,.swap-dialog h2,.team-dialog h2,.demo-manager-dialog h2,.demo-requests-dialog h2 { margin-top:0; }.publication-dialog dl { display:grid;grid-template-columns:max-content 1fr;gap:5px 12px; }.publication-dialog dt { font-weight:800; }.publication-dialog dd { margin:0; }
+.publication-dialog,.swap-dialog,.team-dialog,.demo-manager-dialog,.demo-requests-dialog,.demo-publish-dialog,.demo-remote-reset-dialog { width:min(680px,100%);max-height:calc(100vh - 32px);overflow:auto;padding:20px;border-radius:11px;background:#fff;box-shadow:var(--shadow); }
+.publication-dialog h2,.swap-dialog h2,.team-dialog h2,.demo-manager-dialog h2,.demo-requests-dialog h2,.demo-publish-dialog h2,.demo-remote-reset-dialog h2 { margin-top:0; }.publication-dialog dl,.demo-publish-dialog dl { display:grid;grid-template-columns:max-content 1fr;gap:5px 12px; }.publication-dialog dt,.demo-publish-dialog dt { font-weight:800; }.publication-dialog dd,.demo-publish-dialog dd { margin:0; }
 .publication-warning { padding:8px;border:1px solid #e5c765;background:var(--warn-soft); }.publication-error { color:var(--danger);font-weight:700; }
 .swap-list { display:grid;gap:8px; }.swap-list article { display:grid;gap:3px;padding:10px;border:1px solid var(--line);border-radius:8px; }.swap-list article>div { display:flex;gap:6px;justify-content:flex-end; }
 .team-dialog { display:grid;gap:10px; }.team-dialog>label { display:grid;gap:3px;font-weight:700; }.team-dialog input:not([type="checkbox"]),.team-dialog select { padding:7px;border:1px solid var(--line-strong);border-radius:6px; }.team-dialog fieldset { display:flex;gap:8px;flex-wrap:wrap;border:1px solid var(--line); }
@@ -835,6 +835,46 @@ details.block li { margin: 2px 0; }
 .demo-scenario-summary dt { color: var(--ink-soft); font-size: 11px; font-weight: 800; }
 .demo-scenario-summary dd { margin: 0; font-size: 14px; font-weight: 800; overflow-wrap: anywhere; }
 .demo-scenario-diff { margin: 0; color: #7a5b00; font-size: 12px; font-weight: 800; }
+.demo-publication-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px 16px;
+  background: #f7fbfa;
+  border-bottom: 1px solid var(--line);
+}
+.demo-publication-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+}
+.demo-publication-head h2 { margin: 0; font-size: 15px; }
+.demo-publication-head span { color: var(--ink-soft); font-size: 12px; font-weight: 800; }
+.demo-publication-panel dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 6px;
+  margin: 0;
+}
+.demo-publication-panel dl > div {
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+.demo-publication-panel dt { color: var(--ink-soft); font-size: 11px; font-weight: 800; }
+.demo-publication-panel dd { margin: 0; font-size: 14px; font-weight: 800; overflow-wrap: anywhere; }
+.demo-publication-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.demo-publication-validation {
+  display: flex;
+  gap: 8px 14px;
+  flex-wrap: wrap;
+  color: #315d56;
+  font-size: 12px;
+  font-weight: 800;
+}
+.demo-publication-error { margin: 0; color: var(--danger); font-size: 12px; font-weight: 800; }
+.demo-remote-reset-dialog p { margin: 0 0 14px; line-height: 1.45; }
 
 .grid-n1 .col-shift {
   position: sticky;

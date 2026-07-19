@@ -52,7 +52,7 @@ function hasWorkspaceMismatch(pkg: DemoPublicationPackage, manifest: DemoManifes
   )));
 }
 
-async function sha256Hex(raw: string): Promise<string> {
+export async function sha256Hex(raw: string): Promise<string> {
   // Web Crypto (crypto.subtle) já está disponível tanto no navegador real quanto no
   // ambiente de teste (jsdom/Node 22+) - sem fallback para node:crypto, que o Vite
   // teria que externalizar do bundle do navegador sem necessidade.
