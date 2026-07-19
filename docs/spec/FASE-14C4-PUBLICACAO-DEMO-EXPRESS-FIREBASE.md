@@ -203,22 +203,36 @@ Nenhum achado crítico ou importante ficou pendente no momento do commit de cada
 
 ## Teste real no Firebase
 
-**Não executado nesta sessão.** Este ambiente não tem `GOOGLE_APPLICATION_CREDENTIALS`,
-Application Default Credentials do gcloud, nem um `.env` real configurado — confirmado por
-inspeção direta do ambiente antes de escrever esta seção. O backend, a suíte de testes
-(fake store + testes de concorrência), o `typecheck`, o `build` e a validação manual no
-navegador (contra o backend real, sem Firebase configurado) foram executados e confirmam:
+Executado com sucesso em um projeto Firebase exclusivo de teste, utilizando Firebase Admin
+somente no backend Express local.
 
-- `GET /api/health` responde `{ status: 'ok' }`.
-- `GET /api/demo/status` responde `FIREBASE_ADMIN_NOT_CONFIGURED` de forma sanitizada.
-- O Dashboard mostra "Status Firebase Admin: Não configurado" e desabilita corretamente
-  "Publicar no Firebase" e "Restaurar Demo publicado".
-- O restore local (`window.confirm`) nunca abre o modal de reset remoto.
+Fluxo validado:
 
-**Código e testes concluídos. Publicação real bloqueada por
-`FIREBASE_ADMIN_NOT_CONFIGURED`.** Esta fase não pode ser declarada totalmente concluída sem
-uma publicação real bem-sucedida contra um projeto Firebase de fato — isso fica para quando
-credenciais de um projeto de desenvolvimento/teste estiverem disponíveis.
+- `GET /api/health` respondeu `{ "status": "ok" }`;
+- estado inicial do workspace `demo-v1`: revisão 0, status `NEVER_PUBLISHED`;
+- dry-run real aprovado, com checksum `MATCH` e zero escritas;
+- primeira publicação criada e ativada como revisão 1;
+- repetição sem alterações não criou uma nova revisão;
+- uma alteração local foi salva, validada e publicada como revisão 2;
+- o reset remoto carregou a fixture canônica do servidor e criou a revisão 3;
+- após o reset remoto, o conteúdo voltou ao baseline oficial;
+- revisões anteriores foram preservadas;
+- status final do workspace: `ACTIVE`;
+- nenhuma escrita de produção foi planejada ou executada.
+
+Resultado final:
+
+- workspace: `demo-v1`;
+- revisão ativa final: `3`;
+- status final: `ACTIVE`;
+- `productionWritesPlanned = 0`;
+- `productionWritesPerformed = 0`.
+
+A credencial Firebase Admin permaneceu fora do repositório e não foi incluída no frontend,
+Git, fixtures, logs ou documentação.
+
+O teste real também comprovou o funcionamento das transações de reserva e ativação, das
+escritas no Firestore, do controle de revisão, da idempotência e do reset remoto.
 
 ## Limitações conhecidas
 
@@ -230,12 +244,11 @@ credenciais de um projeto de desenvolvimento/teste estiverem disponíveis.
   vez de validar parcialmente. Isso é uma limitação de design, não um bug — considerar em
   fase futura se vale a pena separar "validação de schema" (sem Admin) de "comparação de
   revisão" (com Admin).
-- Não existe Firestore Emulator configurado neste repositório; a suíte automatizada usa o
-  fake em memória para toda a lógica de domínio/concorrência, e a implementação Firestore
-  real (transações, `tx.create`, catch-all de erro) só foi validada por leitura/revisão de
-  código e pela validação manual do caminho "Admin não configurado" — não por execução real
-  contra Firestore (real ou emulado). A primeira publicação real servirá também como a
-  primeira validação de fato do código Firestore.
+- Não existe Firestore Emulator configurado neste repositório. A suíte automatizada usa o
+  fake em memória para a lógica de domínio e concorrência. A implementação Firestore real,
+  incluindo transações, reserva de revisão, batches, ativação e reset, foi validada por uma
+  execução real em projeto Firebase exclusivo de teste. A ausência do Emulator permanece
+  apenas como limitação para testes automatizados de integração.
 - Não há teste automatizado de rebalanceamento de chunking real (a fixture atual tem menos
   de 400 operações); o código de chunking existe (`MAX_BATCH_WRITES = 400`) mas nunca foi
   exercitado com mais de um batch.
