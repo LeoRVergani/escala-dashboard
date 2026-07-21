@@ -1,5 +1,24 @@
 # Histórico de versões
 
+## 1.13.0 — 21/07/2026
+
+- adiciona área "PUBLICAÇÃO OFICIAL" separada do painel Demo, publicando um snapshot
+  revisionado do workspace `ici-dev` (mesmo contrato consumido pelo botão "MINHA ESCALA"
+  do Escala ICI KMP), reaproveitando a arquitetura de publicação atômica já validada em
+  `demo-v1` (reserva de revisão → escrita isolada → ativação do ponteiro → idempotência);
+- adiciona `server/domain/officialPublicationPlanner.mjs` e
+  `assertOfficialOnlyWritePlan.mjs`, guardas simétricas e independentes das do Demo — o
+  workspace `ici-dev` é sempre decidido pelo servidor, nunca pelo cliente;
+- adiciona endpoint `POST /api/publish/official` (DRY_RUN/COMMIT) e `GET
+  /api/official/status`, exigindo a variável `ALLOW_OFFICIAL_FIRESTORE_WRITE=true`
+  (ausente por padrão) e confirmação explícita para qualquer escrita real;
+- exige vínculo corporativo (`memberId`/`teamId`, com `entraTenantId`/`entraObjectId`/
+  e-mail opcionais) validado tanto no cliente quanto no servidor antes de dry-run ou commit;
+- generaliza `executeAtomicPublication.mjs` para receber o plano/guarda como parâmetro,
+  sem duplicar a lógica de reserva/escrita/ativação entre Demo e oficial;
+- nenhuma publicação real foi feita nesta versão — a flag continua desligada até a
+  primeira publicação oficial ser conduzida manualmente pelo runbook da FASE 14D.
+
 ## 1.12.0 — 18/07/2026
 
 - espelha o workspace `demo-v1` (times, membros, vínculos de gestão, escala, solicitações) gerado pela FASE 14c-2 do EscalaICI-KMP-Lab, sincronizado por `npm run demo:sync`, nunca gerado neste repositório;

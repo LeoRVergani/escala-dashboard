@@ -1,4 +1,23 @@
-# Relatório de validação — Painel de Escalas 1.10.0
+# Relatório de validação — Painel de Escalas 1.13.0
+
+## Release 1.13.0 — FASE 14D (Publicação Oficial `ici-dev`)
+
+Adiciona a rota `POST /api/publish/official` (DRY_RUN/COMMIT) e `GET /api/official/status`,
+reaproveitando a arquitetura de publicação atômica do Demo (`executeAtomicPublication.mjs`,
+generalizado para receber plano/guarda por parâmetro) com uma guarda simétrica e
+independente (`assertOfficialOnlyWritePlan.mjs`, workspace `ici-dev` fixo no servidor).
+Exige vínculo corporativo validado (membro + equipe existentes, com vínculo ativo) antes de
+dry-run ou commit, e a variável `ALLOW_OFFICIAL_FIRESTORE_WRITE` (ausente por padrão) antes
+de qualquer escrita real. Nenhuma publicação real foi feita.
+
+Validado nesta rodada: `npx tsc --noEmit` (limpo), `npx vitest run` (38 arquivos, 323
+testes, 0 falhas — inclui os testes pré-existentes de `demo-v1`, confirmando ausência de
+regressão), `npm run build` (produção), `node server/index.mjs` local com chamadas `curl`
+reais contra `/api/health`, `/api/demo/status`, `/api/official/status` e
+`/api/publish/official`, e `npm run preview` com captura de tela via Chromium headless
+confirmando a build de produção carregando sem erros de console. Detalhe completo em
+`docs/spec/FASE-14D-PUBLICACAO-OFICIAL-ICI-DEV.md`, incluindo o runbook da primeira
+publicação real (ação humana, não executada nesta sessão).
 
 ## Release 1.10.0
 
