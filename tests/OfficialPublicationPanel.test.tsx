@@ -6,10 +6,19 @@ import type { OfficialValidationResult } from '../src/hooks/useOfficialRemotePub
 import { toOfficialPackage } from '../src/lib/officialWorkspace/retarget';
 import type { DemoPublicationPackage } from '../src/lib/demoWorkspace/dto';
 import fixturePackage from '../fixtures/demo/demo-v1-publication-package.json';
+import { buildOfficialTestPackage } from './fixtures/officialPackage';
 
-const officialPackage = toOfficialPackage(fixturePackage as DemoPublicationPackage);
+// Pacote oficial elegível de verdade (nenhum id contém "demo") - usado nos cenários em
+// que o vínculo corporativo deve ser aceito. O pacote retitulado a partir da fixture
+// demo-v1 (ver `demoTaintedOfficialPackage` abaixo) é usado só no teste que confirma a
+// rejeição de dados do Ambiente Demo (FASE 14E).
+const officialPackage = buildOfficialTestPackage();
 const membership = officialPackage.memberTeamMemberships.find((item) => item.active)!;
 const corporateLink = { memberId: membership.memberId, teamId: membership.teamId };
+
+const demoTaintedOfficialPackage = toOfficialPackage(fixturePackage as DemoPublicationPackage);
+const demoTaintedMembership = demoTaintedOfficialPackage.memberTeamMemberships.find((item) => item.active)!;
+const demoTaintedCorporateLink = { memberId: demoTaintedMembership.memberId, teamId: demoTaintedMembership.teamId };
 
 const validation: OfficialValidationResult = {
   status: 'VALIDATED',
@@ -125,5 +134,40 @@ describe('OfficialPublicationPanel', () => {
     expect(dialog).toBeInTheDocument();
     expect(screen.getByText('ici-dev')).toBeInTheDocument();
     expect(screen.getByText(`${member.displayName} — ${team.name}`)).toBeInTheDocument();
+  });
+
+  it('nunca oferece nem aceita membros/equipes do Ambiente Demo no vínculo oficial (FASE 14E)', () => {
+    render(
+      <OfficialPublicationPanel
+        officialPackage={demoTaintedOfficialPackage}
+        corporateLink={demoTaintedCorporateLink}
+        onCorporateLinkChange={vi.fn()}
+        backendStatus="ONLINE"
+        firebaseAdminStatus={{
+          configured: true,
+          workspaceId: 'ici-dev',
+          activePublicationRevision: 0,
+          status: 'NEVER_PUBLISHED',
+          allowOfficialFirestoreWrite: true,
+        }}
+        validation={null}
+        busy="IDLE"
+        lastError={null}
+        onValidate={vi.fn()}
+        onPublishClick={vi.fn()}
+      />,
+    );
+
+    // O select de membro nunca deve listar "Gestor de Segurança Demo" (nem qualquer outro
+    // membro com id contendo "demo") - mesmo que o vínculo recebido via prop já apontasse
+    // para um deles (ex.: estado remanescente de uma sessão anterior).
+    expect(screen.queryByRole('option', { name: /demo/i })).not.toBeInTheDocument();
+    expect(screen.getByText(/nenhum membro oficial disponível/i)).toBeInTheDocument();
+
+    // E as duas ações ficam bloqueadas mesmo com a flag ligada e backend online, porque o
+    // vínculo recebido aponta para dados contaminados pelo Ambiente Demo.
+    expect(screen.getByRole('button', { name: 'Executar dry-run' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Publicar oficialmente' })).toBeDisabled();
+    expect(screen.getByText(/dados do Ambiente Demo, incompatíveis com o workspace ici-dev/i)).toBeInTheDocument();
   });
 });

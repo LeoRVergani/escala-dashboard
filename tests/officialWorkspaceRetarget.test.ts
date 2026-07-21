@@ -1,7 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { toOfficialPackage, validateCorporateLinkLocally } from '../src/lib/officialWorkspace/retarget';
+import {
+  eligibleOfficialMembers,
+  eligibleOfficialTeams,
+  isOfficialLinkEligible,
+  toOfficialPackage,
+  validateCorporateLinkLocally,
+} from '../src/lib/officialWorkspace/retarget';
 import type { DemoPublicationPackage } from '../src/lib/demoWorkspace/dto';
 import fixturePackage from '../fixtures/demo/demo-v1-publication-package.json';
+import { buildOfficialTestPackage } from './fixtures/officialPackage';
 
 const pkg = fixturePackage as DemoPublicationPackage;
 
@@ -79,5 +86,40 @@ describe('validateCorporateLinkLocally', () => {
     });
 
     expect(result).toBeNull();
+  });
+});
+
+// FASE 14E: a fixture demo-v1 retitulada para ici-dev (toOfficialPackage(pkg)) continua
+// tendo, propositalmente, ids com "demo" em todo membro/equipe - é exatamente o caso que
+// `assertOfficialOnlyWritePlan.mjs` rejeita no COMMIT. Estas checagens de elegibilidade
+// devem filtrar/rejeitar esse pacote inteiro, e aceitar normalmente um pacote oficial limpo.
+describe('elegibilidade oficial (filtro anti-contaminação Demo)', () => {
+  const officialPackage = toOfficialPackage(pkg);
+  const cleanPackage = buildOfficialTestPackage();
+
+  it('nao considera nenhum membro/equipe da fixture demo-v1 elegivel para ici-dev', () => {
+    expect(eligibleOfficialMembers(officialPackage)).toHaveLength(0);
+    expect(eligibleOfficialTeams(officialPackage)).toHaveLength(0);
+  });
+
+  it('considera elegiveis membros/equipes de um pacote oficial limpo (sem "demo" no id)', () => {
+    expect(eligibleOfficialMembers(cleanPackage).length).toBeGreaterThan(0);
+    expect(eligibleOfficialTeams(cleanPackage).length).toBeGreaterThan(0);
+  });
+
+  it('isOfficialLinkEligible rejeita vinculo apontando para dados da fixture demo-v1', () => {
+    const membership = officialPackage.memberTeamMemberships.find((item) => item.active)!;
+    expect(isOfficialLinkEligible(officialPackage, {
+      memberId: membership.memberId,
+      teamId: membership.teamId,
+    })).toBe(false);
+  });
+
+  it('isOfficialLinkEligible aceita vinculo real do pacote oficial limpo', () => {
+    const membership = cleanPackage.memberTeamMemberships.find((item) => item.active)!;
+    expect(isOfficialLinkEligible(cleanPackage, {
+      memberId: membership.memberId,
+      teamId: membership.teamId,
+    })).toBe(true);
   });
 });
