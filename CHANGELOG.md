@@ -1,5 +1,65 @@
 # Histórico de versões
 
+## 1.14.0 — 21/07/2026
+
+- reorganiza o Dashboard, antes uma única página longa, em uma casca de navegação
+  (`AppShell`) com barra lateral recolhível (desktop) e menu compacto (telas pequenas):
+  Início, Importar escala, Planejador, Grade, Ambiente Demo, Publicação Oficial,
+  Histórico/Status e Configurações — navegação por estado local (`src/lib/navigation.ts`),
+  sem React Router, preservando rascunho/seleção/desfazer-refazer ao trocar de seção;
+- adiciona a tela `Início` (`Home.tsx`) com cartões de entrada (criar escala vazia,
+  importar, rascunho local, Test Drive, Ambiente Demo, publicação oficial) e um resumo
+  compacto (período, tipo, pessoas, atribuições, status Demo/Oficial, backend, Firebase
+  Admin) — sem mostrar grade nem formulários simultaneamente;
+- corrige a contaminação Demo→Oficial relatada (`O plano de publicação contém um
+  identificador incompatível com o workspace ici-dev`): o pacote oficial de hoje só existe
+  a partir do pacote do Ambiente Demo retitulado, e **todo** id da fixture `demo-v1` contém
+  `"demo"` — antes disso, o vínculo corporativo aceitava qualquer membro/equipe, deixando o
+  dry-run passar e o COMMIT sempre falhar na guarda do servidor. `eligibleOfficialMembers`/
+  `eligibleOfficialTeams`/`isOfficialLinkEligible` (`officialWorkspace/retarget.ts`) agora
+  filtram qualquer registro com `id` contendo `"demo"` ou `workspaceId` diferente de
+  `ici-dev` antes de preencher os selects, e o Dashboard mostra mensagem orientativa
+  ("nenhum membro oficial disponível") em vez de deixar selecionar dados fictícios;
+- substitui o painel único de Publicação Oficial por um wizard de 8 passos
+  (`OfficialPublicationWizard.tsx`): Origem da escala → Revisão dos dados → Diagnósticos →
+  Vínculo corporativo → Dry-run → Revisão do plano → Confirmação → Resultado, com cada
+  etapa desabilitada e explicada até a anterior ser válida (exceto Diagnósticos e
+  Resultado, sempre acessíveis para investigar bloqueios ou conferir tentativas passadas);
+  Demo e Oficial nunca mais aparecem empilhados na mesma tela;
+- padroniza visualmente o formulário de vínculo corporativo e o painel oficial (cards,
+  badges, mensagens de erro/aviso/info) em vez de `fieldset`/`dl` sem estilo; adiciona
+  `DiagnosticsPanel.tsx`, uma área compacta de erros/avisos/informações com detalhe técnico
+  expansível sob demanda, reaproveitada no wizard e na seção Histórico/Status;
+- corrige rolagem: remove o `max-height: calc(100dvh - 245px)` do Planejador SOC (calibrado
+  para a pilha de cabeçalhos antiga, que não existe mais) e estabelece `.shell-content` como
+  única fonte de rolagem vertical de toda a aplicação, com cabeçalho recolhível e botão
+  "voltar ao topo"; preserva o modo compacto do Planejador já existente e adiciona um modo
+  compacto global (`uiCompact`) separado;
+- 23 testes novos (`AppShell`, `Home`, `OfficialPublicationWizard`, navegação integrada via
+  `App`, filtro anti-contaminação em `officialWorkspaceRetarget`/`OfficialPublicationPanel`)
+  e 2 testes existentes atualizados com um clique extra de navegação (`demoWorkspace-ui`),
+  sem remover nenhuma asserção; nenhuma publicação real foi feita, `ALLOW_OFFICIAL_
+  FIRESTORE_WRITE` continua ausente/`false`;
+- **corrige bug crítico encontrado em validação manual real**: a seção Histórico/Status
+  ficava em branco (crash sem Error Boundary) porque `lastPublishedAt` pode chegar do
+  Firestore como `{ _seconds, _nanoseconds }` em vez de string — `formatRemoteTimestamp`
+  trata os dois formatos, e `src/components/ErrorBoundary.tsx` (novo, acoplado no
+  `main.tsx`) garante que um erro de render futuro mostre uma mensagem legível em vez de
+  tela branca;
+- adiciona conjunto de ícones SVG (`src/components/icons.tsx`, sem biblioteca nova) e
+  corrige a navegação recolhida, que quebrava texto e sobrepunha o badge "ativo" dentro de
+  56px — recolhida, cada item mostra só o ícone (nome completo continua em `title`);
+- adiciona tema claro/escuro (`src/lib/theme.ts`, ciclo automático/claro/escuro persistido)
+  reaproveitando a paleta real do app Android/KMP (`EscalaICI-KMP-Lab`, dark-only) na casca
+  de navegação, Home, wizard oficial, diagnósticos e configurações; corrige fundos com cor
+  fixa (`.firebase-bar`, `.n1-modebar`, `.demo-workspace-banner`, `.demo-scenario-summary`,
+  toast) que ficavam ilegíveis no escuro;
+- adiciona identidade local "chefe do setor → time" sem MSAL (`LocalIdentityBar.tsx`,
+  `useLocalIdentity.ts`), sempre visível no cabeçalho, isolada de `firebaseDashboard.teams`
+  (o seletor real, autenticado) — só um rótulo de contexto até o login Microsoft existir;
+- `tests/setup.ts` ganha stub de `window.matchMedia` (ausente no jsdom); zero testes
+  removidos, `npx vitest run` continua em 351 testes, 0 falhas.
+
 ## 1.13.0 — 21/07/2026
 
 - adiciona área "PUBLICAÇÃO OFICIAL" separada do painel Demo, publicando um snapshot
