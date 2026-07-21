@@ -1,6 +1,6 @@
 import type { DemoPublicationPackage } from '../lib/demoWorkspace/dto';
 import type { OfficialCorporateLink } from '../lib/officialWorkspace/retarget';
-import { validateCorporateLinkLocally } from '../lib/officialWorkspace/retarget';
+import { isOfficialLinkEligible, validateCorporateLinkLocally } from '../lib/officialWorkspace/retarget';
 import type {
   OfficialBackendStatus,
   OfficialFirebaseAdminStatus,
@@ -41,7 +41,10 @@ export function OfficialPublicationPanel({
   onPublishClick,
 }: OfficialPublicationPanelProps) {
   const writeEnabled = firebaseAdminStatus?.allowOfficialFirestoreWrite === true;
-  const linkError = validateCorporateLinkLocally(officialPackage, corporateLink);
+  const linkError = validateCorporateLinkLocally(officialPackage, corporateLink)
+    ?? (corporateLink.memberId && corporateLink.teamId && !isOfficialLinkEligible(officialPackage, corporateLink)
+      ? 'O vínculo selecionado usa dados do Ambiente Demo, incompatíveis com o workspace ici-dev.'
+      : null);
   const canValidate = backendStatus === 'ONLINE' && busy === 'IDLE' && !linkError;
   const canPublish = backendStatus === 'ONLINE'
     && firebaseAdminStatus?.configured === true

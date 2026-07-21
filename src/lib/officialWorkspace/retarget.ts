@@ -38,6 +38,48 @@ export interface OfficialCorporateLink {
   login?: string;
 }
 
+// Guarda de contaminação (FASE 14E, seção "Vínculo corporativo oficial"): o servidor
+// (assertOfficialOnlyWritePlan.mjs) já rejeita qualquer id que contenha "demo" no plano
+// de publicação. Antes desta fase, nada equivalente existia no cliente - o pacote oficial
+// de hoje é sempre `toOfficialPackage(demoWorkspaceState.draftPackage)`, e todo id da
+// fixture demo-v1 contém "demo" (ex.: `member-demo-gestor-seguranca`), então o vínculo
+// corporativo nunca tinha, na prática, uma opção que sobrevivesse ao COMMIT. Estas funções
+// espelham a mesma checagem no cliente, para nunca oferecer nem aceitar essas opções antes
+// de chegar ao servidor. Deliberadamente NÃO alteram `validateCorporateLinkLocally` (ver
+// tests/officialWorkspaceRetarget.test.ts) - continuam sendo verificações adicionais, não
+// uma substituição da validação referencial existente.
+const DEMO_TAINT_PATTERN = /demo/i;
+
+export function isEligibleOfficialMember(member: { id: string; workspaceId: string }): boolean {
+  return member.workspaceId === OFFICIAL_WORKSPACE_ID && !DEMO_TAINT_PATTERN.test(member.id);
+}
+
+export function isEligibleOfficialTeam(team: { id: string; workspaceId: string }): boolean {
+  return team.workspaceId === OFFICIAL_WORKSPACE_ID && !DEMO_TAINT_PATTERN.test(team.id);
+}
+
+export function eligibleOfficialMembers(pkg: DemoPublicationPackage) {
+  return pkg.members.filter((member) => member.active && isEligibleOfficialMember(member));
+}
+
+export function eligibleOfficialTeams(pkg: DemoPublicationPackage) {
+  return pkg.teams.filter(isEligibleOfficialTeam);
+}
+
+/**
+ * Verifica se um vínculo corporativo já escolhido aponta para um membro e uma equipe que
+ * sobrevivem à guarda de contaminação. Usada além de `validateCorporateLinkLocally` (que
+ * cobre só integridade referencial) para desabilitar dry-run/publicação quando o vínculo,
+ * apesar de referencialmente válido, usa dados do Ambiente Demo.
+ */
+export function isOfficialLinkEligible(pkg: DemoPublicationPackage, link: Partial<OfficialCorporateLink>): boolean {
+  if (!link.memberId || !link.teamId) return false;
+  const member = pkg.members.find((item) => item.id === link.memberId);
+  const team = pkg.teams.find((item) => item.id === link.teamId);
+  if (!member || !team) return false;
+  return isEligibleOfficialMember(member) && isEligibleOfficialTeam(team);
+}
+
 /**
  * Valida no cliente (feedback imediato, antes de chamar o servidor) que o vínculo aponta
  * para um membro e uma equipe existentes no pacote, com vínculo ativo entre os dois. O

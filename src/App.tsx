@@ -43,7 +43,6 @@ import { DemoWorkspaceBanner } from './components/DemoWorkspaceBanner';
 import { DemoScenarioSummary } from './components/DemoScenarioSummary';
 import { DemoPublicationPanel } from './components/DemoPublicationPanel';
 import { DemoPublishDialog } from './components/DemoPublishDialog';
-import { OfficialPublicationPanel } from './components/OfficialPublicationPanel';
 import { OfficialPublishDialog } from './components/OfficialPublishDialog';
 import { DemoRemoteResetDialog } from './components/DemoRemoteResetDialog';
 import { DemoChangeRequestsDialog } from './components/DemoChangeRequestsDialog';
@@ -61,13 +60,28 @@ import { useDemoRemotePublication, type DemoValidationResult } from './hooks/use
 import { useOfficialRemotePublication, type OfficialValidationResult } from './hooks/useOfficialRemotePublication';
 import type { DemoWorkspaceDiff } from './lib/demoWorkspace/diff';
 import type { DemoPublicationPackage } from './lib/demoWorkspace/dto';
-import { toOfficialPackage, type OfficialCorporateLink } from './lib/officialWorkspace/retarget';
+import { eligibleOfficialMembers, toOfficialPackage, type OfficialCorporateLink } from './lib/officialWorkspace/retarget';
 import { signInWithMicrosoft, signOutDashboard } from './lib/authRepository';
 import { buildPublicationPreview, type PublicationPreview } from './lib/publicationPreview';
 import { publishStructuredSchedule, type PublicationMode } from './lib/schedulePublishRepository';
 import { decideSwapRequest, loadSwapRequests } from './lib/swapRequestsRepository';
 import { saveTeam } from './lib/teamsRepository';
 import type { ShiftSwapRequest, Team } from './types';
+import { AppShell, type AppShellSectionState } from './components/AppShell';
+import { Home, type HomeSummary } from './components/Home';
+import { OfficialPublicationWizard } from './components/OfficialPublicationWizard';
+import { LocalIdentityBar } from './components/LocalIdentityBar';
+import {
+  loadStoredNavCollapsed,
+  loadStoredSection,
+  loadStoredUiCompact,
+  storeNavCollapsed,
+  storeSection,
+  storeUiCompact,
+  type AppSection,
+} from './lib/navigation';
+import { applyTheme, loadStoredTheme, nextTheme, storeTheme } from './lib/theme';
+import { useLocalIdentity } from './hooks/useLocalIdentity';
 
 interface PendingImport {
   wb: XLSX.WorkBook;
@@ -92,13 +106,66 @@ function shortN1Name(raw: string): string {
   return words.length <= 2 ? full : `${words[0]} ${words[words.length - 1]}`;
 }
 
+/** Rótulo humano do tipo de escala para o resumo da Home (FASE 14E). */
+function scheduleTypeLabel(state: ScheduleState): string {
+  if (state.viewType === 'oncall') return 'Plantão COSI';
+  if (state.serviceDeskN1) return 'Service Desk N1 — Escala 6x1';
+  if (state.visualGrouping === 'operational-shift') return 'SOC/NOC — Escala 6x1';
+  return 'Escala';
+}
+
+/**
+ * Formata `lastPublishedAt` com segurança para exibição. O tipo declarado é
+ * `string | null`, mas o campo vem direto de um documento do Firestore
+ * (`server/routes/{demoStatus,officialStatus}.mjs`) e, quando o valor bruto é um
+ * `Timestamp` do Admin SDK, o `JSON.stringify` do Express serializa como
+ * `{ _seconds, _nanoseconds }` em vez de string - renderizar esse objeto direto em JSX
+ * quebra o React ("Objects are not valid as a React child") e, sem Error Boundary, deixa
+ * a tela em branco. Nunca renderiza um valor bruto não reconhecido.
+ */
+function formatRemoteTimestamp(value: unknown): string {
+  if (value == null) return '—';
+  if (typeof value === 'string') {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString('pt-BR');
+  }
+  if (typeof value === 'number') {
+    return new Date(value).toLocaleString('pt-BR');
+  }
+  if (typeof value === 'object' && '_seconds' in (value as Record<string, unknown>)) {
+    const seconds = (value as { _seconds: number })._seconds;
+    return new Date(seconds * 1000).toLocaleString('pt-BR');
+  }
+  return '—';
+}
+
+/** Conta atribuições preenchidas, independente da visualização (grade, N1 ou plantão). */
+function countScheduleAssignments(state: ScheduleState): number {
+  if (state.onCallRecords) return state.onCallRecords.length;
+  if (state.serviceDeskN1) {
+    return [...state.serviceDeskN1.principalRows, ...state.serviceDeskN1.emailGuaranteeRows]
+      .reduce((sum, row) => sum + Object.keys(row.cells).length, 0);
+  }
+  return Object.values(state.cells).reduce((sum, row) => sum + Object.keys(row).length, 0);
+}
+
 export default function App() {
   const history = useHistory<ScheduleState | null>(null);
   const firebaseDashboard = useFirebaseDashboard();
   const demoWorkspace = useDemoWorkspace();
   const schedule = history.state;
-  const demoRemotePublication = useDemoRemotePublication(schedule?.origin === 'demo-workspace-package');
-  const officialRemotePublication = useOfficialRemotePublication(schedule?.origin === 'demo-workspace-package');
+  // FASE 14E: sempre habilitados (não dependem mais de schedule.origin) - a Home e a seção
+  // Histórico/Status precisam do status do backend/Firebase Admin mesmo antes de qualquer
+  // workspace ser carregado, e a Publicação Oficial agora é uma seção própria, alcançável
+  // sem passar pelo Ambiente Demo primeiro.
+  const demoRemotePublication = useDemoRemotePublication(true);
+  const officialRemotePublication = useOfficialRemotePublication(true);
+  const [activeSection, setActiveSection] = useState<AppSection>(() => loadStoredSection());
+  const [navCollapsed, setNavCollapsed] = useState(() => loadStoredNavCollapsed());
+  const [uiCompact, setUiCompact] = useState(() => loadStoredUiCompact());
+  const [themePreference, setThemePreference] = useState(() => loadStoredTheme());
+  const localIdentity = useLocalIdentity();
+  const [officialPublishResult, setOfficialPublishResult] = useState<{ revision: number } | null>(null);
   const [n1Layer, setN1Layer] = useState<ServiceDeskN1Layer>('principal');
   const [pending, setPending] = useState<PendingImport | null>(null);
   const [selection, setSelection] = useState<Set<CellKey>>(new Set());
@@ -108,7 +175,6 @@ export default function App() {
   const [dragOver, setDragOver] = useState(false);
   const [draftAvailable, setDraftAvailable] = useState(() => loadDraft() !== null);
   const [testDriveAvailable, setTestDriveAvailable] = useState(() => loadTestDriveSession() !== null);
-  const [socView, setSocView] = useState<'grid' | 'planner'>(() => localStorage.getItem('escala-dashboard:soc-view') === 'planner' ? 'planner' : 'grid');
   const [socCompact, setSocCompact] = useState(() => localStorage.getItem('escala-dashboard:soc-compact') === 'true');
   const fileInput = useRef<HTMLInputElement>(null);
   const toastTimer = useRef<number>();
@@ -148,6 +214,43 @@ export default function App() {
     toastTimer.current = window.setTimeout(() => setToast(null), 2600);
   }, []);
 
+  // Navegação principal (FASE 14E) - substitui o antigo alternador local `socView`. É só
+  // estado do App, sem router: trocar de seção nunca remonta o componente, então rascunho,
+  // seleção, desfazer/refazer e o rascunho do Ambiente Demo continuam intactos.
+  const navigate = useCallback((section: AppSection) => {
+    setActiveSection(section);
+    storeSection(section);
+  }, []);
+
+  const cycleTheme = useCallback(() => {
+    setThemePreference((prev) => {
+      const next = nextTheme(prev);
+      storeTheme(next);
+      applyTheme(next);
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    applyTheme(themePreference);
+    if (themePreference !== 'system' || typeof window.matchMedia !== 'function') return;
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    if (!media) return;
+    const onChange = () => applyTheme('system');
+    media.addEventListener('change', onChange);
+    return () => media.removeEventListener('change', onChange);
+  }, [themePreference]);
+
+  const isSoc = Boolean(schedule?.visualGrouping === 'operational-shift' && !schedule.serviceDeskN1 && schedule.viewType !== 'oncall');
+
+  useEffect(() => {
+    if (!schedule && (activeSection === 'grid' || activeSection === 'planner')) {
+      navigate('home');
+    } else if (activeSection === 'planner' && !isSoc) {
+      navigate('grid');
+    }
+  }, [schedule, activeSection, isSoc, navigate]);
+
   const conflicts = useMemo(
     () => (schedule ? detectConflicts(schedule) : []),
     [schedule],
@@ -176,7 +279,7 @@ export default function App() {
   useEffect(() => {
     if (!showConflicts) return;
     conflictPanelRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
-  }, [showConflicts, socView]);
+  }, [showConflicts, activeSection]);
 
   const openConflictPanel = useCallback(() => {
     setShowConflicts(true);
@@ -293,6 +396,7 @@ export default function App() {
     const validation = await officialRemotePublication.validate(officialPackage, link);
     if (!validation) return;
     setOfficialPublishSnapshot({ officialPackage, corporateLink: link, validation });
+    setOfficialPublishResult(null);
     setShowOfficialPublishDialog(true);
   }, [officialPackage, officialCorporateLink, officialRemotePublication]);
 
@@ -303,6 +407,7 @@ export default function App() {
     if (!result.ok) return;
     setShowOfficialPublishDialog(false);
     setOfficialPublishSnapshot(null);
+    setOfficialPublishResult({ revision: result.publicationRevision });
     notify(`Workspace oficial ici-dev publicado na revisão ${result.publicationRevision}.`);
   }, [officialPublishSnapshot, officialRemotePublication, notify]);
 
@@ -325,8 +430,9 @@ export default function App() {
       notify('O Ambiente de Demonstração não possui time carregável.');
       return;
     }
+    navigate('demo');
     notify('Ambiente de Demonstração carregado.');
-  }, [demoWorkspace, notify, resetDemoSchedule]);
+  }, [demoWorkspace, notify, resetDemoSchedule, navigate]);
 
   /* ---------- Importação ---------- */
 
@@ -359,6 +465,7 @@ export default function App() {
         setSelection(new Set());
         setClipboard(null);
         setPending(null);
+        navigate('grid');
         notify(
           result.state.viewType === 'oncall'
             ? `Importados ${result.importedRecords ?? result.state.onCallRecords?.length ?? 0} plantões de ${result.state.technicians.length} plantonistas.`
@@ -368,7 +475,7 @@ export default function App() {
         notify(`Falha na importação: ${(err as Error).message}`);
       }
     },
-    [pending, history, notify, firebaseDashboard.selectedTeam],
+    [pending, history, notify, firebaseDashboard.selectedTeam, navigate],
   );
 
   const openPublication = useCallback(async () => {
@@ -907,7 +1014,41 @@ export default function App() {
     : n1Layer === 'principal'
       ? N1_PRIMARY_CODES
       : N1_EMAIL_GUARANTEE_CODES;
-  const isSoc = Boolean(schedule?.visualGrouping === 'operational-shift' && !schedule.serviceDeskN1 && schedule.viewType !== 'oncall');
+
+  const officialEligibleCount = officialPackage ? eligibleOfficialMembers(officialPackage).length : 0;
+
+  const homeSummary: HomeSummary = {
+    hasSchedule: Boolean(schedule),
+    scheduleTypeLabel: schedule ? scheduleTypeLabel(schedule) : null,
+    periodLabel: schedule ? monthTitle : null,
+    peopleCount: schedule?.technicians.length ?? 0,
+    assignmentsCount: schedule ? countScheduleAssignments(schedule) : 0,
+    localDraftAvailable: draftAvailable,
+    testDriveAvailable,
+    demoWorkspaceLoaded: Boolean(demoWorkspaceState),
+    demoWorkspaceDirty: demoWorkspaceState?.dirty ?? false,
+    demoContinueAvailable: demoWorkspace.hasPersistedDraft,
+    officialPackageLoaded: Boolean(officialPackage),
+    officialEligibleMemberCount: officialEligibleCount,
+    backendStatus: demoRemotePublication.backendStatus !== 'UNKNOWN' ? demoRemotePublication.backendStatus : officialRemotePublication.backendStatus,
+    firebaseAdminConfigured: demoRemotePublication.firebaseAdminStatus?.configured ?? officialRemotePublication.firebaseAdminStatus?.configured ?? null,
+  };
+
+  // Estado de cada item da navegação (FASE 14E): "Grade"/"Planejador" desabilitam com
+  // explicação quando não há como mostrar nada útil ali, em vez de aparecerem vazios ou
+  // simplesmente não funcionarem. "Ambiente Demo" ganha um badge quando é a origem da
+  // escala em edição, para o usuário nunca perder de vista em qual ambiente está mesmo
+  // com o cabeçalho recolhido.
+  const sectionState: Partial<Record<AppSection, AppShellSectionState>> = {};
+  if (!schedule) {
+    sectionState.grid = { disabled: true, reason: 'Carregue ou importe uma escala primeiro.' };
+    sectionState.planner = { disabled: true, reason: 'Carregue ou importe uma escala primeiro.' };
+  } else if (!isSoc) {
+    sectionState.planner = { disabled: true, reason: 'Disponível apenas para escalas SOC/NOC rotativas.' };
+  }
+  if (schedule?.origin === 'demo-workspace-package') {
+    sectionState.demo = { badge: 'ativo' };
+  }
 
   return (
     <div
@@ -936,408 +1077,588 @@ export default function App() {
         }}
       />
 
-      <header className="topbar">
-        <div className="brand">
-          Painel de Escalas
-          <small>v1.13.0 · importar → escolher período/bloco → revisar → editar → publicar</small>
-        </div>
-        {schedule && (
+      <AppShell
+        activeSection={activeSection}
+        onNavigate={navigate}
+        navCollapsed={navCollapsed}
+        onToggleNavCollapsed={() => setNavCollapsed((prev) => { const next = !prev; storeNavCollapsed(next); return next; })}
+        uiCompact={uiCompact}
+        onToggleUiCompact={() => setUiCompact((prev) => { const next = !prev; storeUiCompact(next); return next; })}
+        themePreference={themePreference}
+        onCycleTheme={cycleTheme}
+        sectionState={sectionState}
+        identityBar={(
+          <LocalIdentityBar
+            identity={localIdentity.identity}
+            activeTeam={localIdentity.activeTeam}
+            onSetChefeName={localIdentity.setChefeName}
+            onAddTeam={localIdentity.addTeam}
+            onSetActiveTeam={localIdentity.setActiveTeam}
+          />
+        )}
+        footer={schedule && schedule.origin !== 'demo-workspace-package' ? (
+          <span className="shell-draft-note">
+            rascunho salvo automaticamente
+            {' · '}
+            <button
+              className="icon-btn"
+              onClick={() => {
+                if (schedule.origin === 'demo-template') {
+                  endTestDrive();
+                  setTestDriveAvailable(false);
+                  notify('Dados fictícios do Test Drive apagados.');
+                } else {
+                  clearDraft(schedule, firebaseDashboard.selectedTeamId || undefined);
+                  setDraftAvailable(false);
+                  notify('Rascunho local apagado.');
+                }
+              }}
+            >
+              apagar rascunho
+            </button>
+          </span>
+        ) : null}
+        topBar={
           <>
-            <div className="month-title">
-              {monthTitle}
-              {schedule.isDemo && <span className="badge-demo">dados fictícios</span>}
-              {schedule.sourceLabel && !schedule.isDemo && (
-                <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>
-                  {schedule.sourceLabel}
-                </span>
+            <header className="topbar">
+              <div className="brand">
+                Painel de Escalas
+                <small>v1.14.0 · Início → Importar → Planejador/Grade → Demo/Oficial</small>
+              </div>
+              {schedule && (
+                <>
+                  <div className="month-title">
+                    {monthTitle}
+                    {schedule.isDemo && <span className="badge-demo">dados fictícios</span>}
+                    {schedule.sourceLabel && !schedule.isDemo && (
+                      <span className="muted" style={{ fontSize: 12, fontWeight: 400 }}>
+                        {schedule.sourceLabel}
+                      </span>
+                    )}
+                  </div>
+                  <div className="toolbar" role="toolbar" aria-label="Ações da escala">
+                    <button className="btn" onClick={() => fileInput.current?.click()}>
+                      Importar arquivo
+                    </button>
+                    {(activeSection === 'grid' || activeSection === 'planner') && (
+                      <>
+                        <button className="btn" onClick={history.undo} disabled={!history.canUndo}>
+                          Desfazer
+                        </button>
+                        <button className="btn" onClick={history.redo} disabled={!history.canRedo}>
+                          Refazer
+                        </button>
+                        {schedule.viewType !== 'oncall' && (
+                          <button
+                            className="btn"
+                            disabled={selection.size === 0}
+                            onClick={() => {
+                              applyShift([...selection], null);
+                              notify('Seleção limpa.');
+                            }}
+                          >
+                            Limpar seleção
+                          </button>
+                        )}
+                      </>
+                    )}
+                    <button
+                      className="btn"
+                      onClick={() => {
+                        if (schedule.origin === 'demo-template') {
+                          saveTestDriveSession(schedule);
+                          setTestDriveAvailable(true);
+                          notify('Test Drive salvo neste navegador.');
+                        } else if (schedule.origin === 'demo-workspace-package') {
+                          demoWorkspace.saveLocalRevision();
+                          notify('Revisão local do Ambiente de Demonstração registrada neste navegador.');
+                        } else {
+                          saveDraft(schedule, firebaseDashboard.selectedTeamId || undefined);
+                          setDraftAvailable(true);
+                          notify('Rascunho salvo neste navegador.');
+                        }
+                      }}
+                    >
+                      Salvar rascunho
+                    </button>
+                    <button className="btn btn-primary" onClick={() => exportScheduleFile(schedule)}>
+                      Exportar XLSX
+                    </button>
+                    {(activeSection === 'grid' || activeSection === 'planner') && schedule.viewType !== 'oncall' && (
+                      <button
+                        className={`conflict-chip${conflicts.length ? ' has' : ''}`}
+                        aria-pressed={showConflicts}
+                        onClick={openConflictPanel}
+                      >
+                        Alertas: {conflicts.length}
+                      </button>
+                    )}
+                  </div>
+                </>
               )}
-            </div>
-            <div className="toolbar" role="toolbar" aria-label="Ações da escala">
-              <button className="btn" onClick={() => fileInput.current?.click()}>
-                Importar arquivo
-              </button>
-              <button className="btn" onClick={history.undo} disabled={!history.canUndo}>
-                Desfazer
-              </button>
-              <button className="btn" onClick={history.redo} disabled={!history.canRedo}>
-                Refazer
-              </button>
-              {schedule.viewType !== 'oncall' && (
+            </header>
+
+            <FirebaseDashboardBar
+              configured={firebaseDashboard.configured}
+              user={firebaseDashboard.user}
+              teams={firebaseDashboard.teams}
+              selectedTeamId={firebaseDashboard.selectedTeamId}
+              loading={firebaseDashboard.loading || firebaseBusy}
+              error={firebaseDashboard.error}
+              hasSchedule={Boolean(schedule)}
+              canPublish={Boolean(schedule && firebaseDashboard.user && firebaseDashboard.selectedTeam && !schedule.isDemo && schedule.technicians.length && (schedule.viewType === 'oncall' ? schedule.onCallRecords?.length : Object.values(schedule.cells).some((row) => Object.values(row).some(Boolean))))}
+              onTeamChange={firebaseDashboard.setSelectedTeamId}
+              onLogin={() => { firebaseDashboard.setError(null); void signInWithMicrosoft().catch((error) => firebaseDashboard.setError((error as Error).message)); }}
+              onLogout={() => void signOutDashboard().catch((error) => firebaseDashboard.setError((error as Error).message))}
+              onImport={() => fileInput.current?.click()}
+              onSaveDraft={() => {
+                if (schedule?.origin === 'demo-template') {
+                  saveTestDriveSession(schedule);
+                  setTestDriveAvailable(true);
+                  notify('Test Drive salvo neste navegador.');
+                } else if (schedule?.origin === 'demo-workspace-package') {
+                  demoWorkspace.saveLocalRevision();
+                  notify('Revisão local do Ambiente de Demonstração registrada neste navegador.');
+                } else if (schedule && firebaseDashboard.selectedTeam) {
+                  saveDraft(schedule, firebaseDashboard.selectedTeam.id);
+                  setDraftAvailable(true);
+                  notify(`Rascunho salvo para ${firebaseDashboard.selectedTeam.name}.`);
+                }
+              }}
+              onPublish={() => void openPublication()}
+              onSwaps={() => void openSwaps()}
+              onManageTeams={() => setShowTeamDialog(true)}
+            />
+
+            {schedule && schedule.origin === 'demo-template' && (
+              <div className="n1-modebar" role="status">
+                <div>
+                  <strong>Test Drive — dados fictícios salvos somente neste navegador</strong>
+                </div>
                 <button
                   className="btn"
-                  disabled={selection.size === 0}
                   onClick={() => {
-                    applyShift([...selection], null);
-                    notify('Seleção limpa.');
+                    endTestDrive();
+                    history.reset(null);
+                    setTestDriveAvailable(false);
+                    navigate('home');
+                    notify('Dados fictícios do Test Drive apagados.');
                   }}
                 >
-                  Limpar seleção
+                  Encerrar Test Drive e apagar dados locais
                 </button>
-              )}
-              <button
-                className="btn"
-                onClick={() => {
-                  if (schedule.origin === 'demo-template') {
-                    saveTestDriveSession(schedule);
-                    setTestDriveAvailable(true);
-                    notify('Test Drive salvo neste navegador.');
-                  } else if (schedule.origin === 'demo-workspace-package') {
-                    demoWorkspace.saveLocalRevision();
-                    notify('Revisão local do Ambiente de Demonstração registrada neste navegador.');
-                  } else {
-                    saveDraft(schedule, firebaseDashboard.selectedTeamId || undefined);
-                    setDraftAvailable(true);
-                    notify('Rascunho salvo neste navegador.');
-                  }
-                }}
-              >
-                Salvar rascunho
-              </button>
-              <button className="btn btn-primary" onClick={() => exportScheduleFile(schedule)}>
-                Exportar XLSX
-              </button>
-              {schedule.viewType !== 'oncall' && (
-                <button
-                  className={`conflict-chip${conflicts.length ? ' has' : ''}`}
-                  aria-pressed={showConflicts}
-                  onClick={openConflictPanel}
-                >
-                  Alertas: {conflicts.length}
+              </div>
+            )}
+
+            {schedule && schedule.origin === 'demo-workspace-package' && (
+              <DemoWorkspaceBanner
+                workspaceId={demoWorkspaceState?.workspaceId ?? 'demo-v1'}
+                sourcePublicationRevision={demoWorkspaceState?.sourcePublicationRevision ?? 1}
+                dirty={demoWorkspaceState?.dirty ?? false}
+              />
+            )}
+          </>
+        }
+      >
+        {activeSection === 'home' && (
+          <Home
+            summary={homeSummary}
+            onCreateEmpty={() => {
+              if (draftAvailable && !window.confirm('Já existe um rascunho salvo. Criar uma nova escala vazia pode sobrescrevê-lo. Deseja continuar?')) return;
+              setTemplateWizardMode('empty');
+            }}
+            onStartImport={() => {
+              navigate('import');
+              fileInput.current?.click();
+            }}
+            onOpenDraft={() => {
+              const d = loadDraft();
+              if (d) {
+                history.reset(d.state);
+                navigate('grid');
+                notify(`Rascunho de ${new Date(d.savedAt).toLocaleString('pt-BR')} restaurado.`);
+              } else {
+                setDraftAvailable(false);
+                notify('Nenhum rascunho válido encontrado.');
+              }
+            }}
+            onStartTestDrive={() => {
+              if (testDriveAvailable && !window.confirm('Já existe um Test Drive salvo. Iniciar um novo vai sobrescrevê-lo. Deseja continuar?')) return;
+              setTemplateWizardMode('demo');
+            }}
+            onContinueTestDrive={() => {
+              const session = loadTestDriveSession();
+              if (session) {
+                history.reset(session.state);
+                navigate('grid');
+                notify(`Test Drive de ${new Date(session.savedAt).toLocaleString('pt-BR')} restaurado.`);
+              } else {
+                setTestDriveAvailable(false);
+                notify('Nenhum Test Drive válido encontrado.');
+              }
+            }}
+            onOpenDemoWorkspace={() => void loadDemoWorkspace()}
+            onContinueDemoWorkspace={() => void loadDemoWorkspace()}
+            onPrepareOfficial={() => navigate('official')}
+            onViewStatus={() => navigate('status')}
+          />
+        )}
+
+        {activeSection === 'import' && (
+          <main className="empty">
+            <div className={`dropzone${dragOver ? ' dragover' : ''}`}>
+              <h1>Importar planilha de escala</h1>
+              <p>
+                Arraste um arquivo .xls ou .xlsx para cá, ou use o botão abaixo. O painel
+                identifica as abas e os meses e você escolhe o período ou bloco que deseja
+                importar.
+              </p>
+              <div className="empty-actions">
+                <button className="btn btn-primary" onClick={() => fileInput.current?.click()}>
+                  Importar arquivo
                 </button>
-              )}
+                <button className="btn btn-ghost" onClick={() => navigate('home')}>
+                  Voltar ao Início
+                </button>
+              </div>
+              <div className="flow">
+                Importar arquivo → escolher período/bloco → revisar → editar → salvar ou exportar
+              </div>
             </div>
+          </main>
+        )}
+
+        {activeSection === 'grid' && schedule && schedule.viewType === 'oncall' && (
+          <OnCallEditor
+            records={schedule.onCallRecords ?? []}
+            technicians={schedule.technicians}
+            monthKey={schedule.monthKey}
+            onChange={updateOnCallRecord}
+            onAddRecord={addOnCallRecord}
+            onDeleteRecord={deleteOnCallRecord}
+            onMoveRecord={moveOnCallRecord}
+            onAddTechnicians={addOnCallTechnicians}
+            onRenameTechnician={renameOnCallTechnician}
+            onSetTechnicianColor={setOnCallTechnicianColor}
+            onRemoveTechnician={removeOnCallTechnician}
+            onSetMonth={setOnCallMonth}
+            onAutoFill={autoFillOnCallMonth}
+            onClearMonth={clearOnCallMonth}
+          />
+        )}
+
+        {activeSection === 'grid' && schedule && schedule.viewType !== 'oncall' && (
+          <>
+            {schedule.serviceDeskN1 && (
+              <div className="n1-modebar" aria-label="Visualização Service Desk N1">
+                <div>
+                  <strong>Modo Service Desk N1</strong>
+                  <span>turnos, pausas e atividades vinculados ao mesmo técnico</span>
+                </div>
+                <div className="n1-tabs" role="tablist" aria-label="Escalas do Service Desk N1">
+                  <button
+                    role="tab"
+                    aria-selected={n1Layer === 'principal'}
+                    className="btn"
+                    onClick={() => {
+                      setN1Layer('principal');
+                      setSelection(new Set());
+                      setClipboard(null);
+                    }}
+                  >
+                    Escala principal
+                  </button>
+                  <button
+                    role="tab"
+                    aria-selected={n1Layer === 'email-garantia'}
+                    className="btn"
+                    disabled={schedule.serviceDeskN1.emailGuaranteeRows.length === 0}
+                    title={schedule.serviceDeskN1.emailGuaranteeRows.length === 0 ? 'Esta aba não possui escala de e-mail e garantia.' : undefined}
+                    onClick={() => {
+                      setN1Layer('email-garantia');
+                      setSelection(new Set());
+                      setClipboard(null);
+                    }}
+                  >
+                    E-mail e garantia
+                  </button>
+                </div>
+                <span className="n1-layer-summary">
+                  {visibleN1Rows.length} linha{visibleN1Rows.length === 1 ? '' : 's'} · nomes abreviados na grade; nome completo preservado
+                </span>
+              </div>
+            )}
+
+            <div className="legend" aria-label="Legenda e preenchimento rápido">
+              <span className="hint">
+                {selection.size > 0
+                  ? `Clique em um código para aplicar às ${selection.size} células selecionadas:`
+                  : schedule.serviceDeskN1
+                    ? `Legenda da ${n1Layer === 'principal' ? 'escala principal' : 'escala de e-mail e garantia'}:`
+                    : 'Legenda (selecione células para preencher em lote):'}
+              </span>
+              {schedule.serviceDeskN1
+                ? n1Codes.map((item) => (
+                    <button
+                      key={item.code}
+                      className={`chip n1-legend-code n1-code-${item.code.replace(/[^A-Z0-9]+/g, '-')}`}
+                      disabled={selection.size === 0}
+                      title={item.description}
+                      onClick={() => {
+                        applyShift([...selection], n1CellValue(item.code));
+                        notify(`${item.code} · ${item.label} aplicado a ${selection.size} células.`);
+                      }}
+                    >
+                      {item.code} · {item.label}
+                    </button>
+                  ))
+                : SHIFTS.map((s) => (
+                    <button
+                      key={s.id}
+                      className="chip"
+                      disabled={selection.size === 0}
+                      style={{
+                        ['--chip-bg' as string]: `var(--sh-${s.id}-bg)`,
+                        ['--chip-fg' as string]: `var(--sh-${s.id}-fg)`,
+                      }}
+                      onClick={() => {
+                        applyShift([...selection], { shift: s.id });
+                        notify(`${s.label} aplicado a ${selection.size} células.`);
+                      }}
+                    >
+                      {s.code} · {s.label}
+                    </button>
+                  ))}
+              <button
+                className="chip chip-clear"
+                disabled={selection.size === 0}
+                onClick={() => setSelection(new Set())}
+              >
+                Desmarcar
+              </button>
+            </div>
+
+            {visibleSchedule && (
+              <ScheduleGrid
+                state={visibleSchedule}
+                selection={selection}
+                conflicts={gridConflicts}
+                onSelectionChange={setSelection}
+                onApplyShift={applyShift}
+                onCopyValueTo={copyValueTo}
+                onFillRange={fillRange}
+                onCopyDay={copyDay}
+                onPasteDay={pasteDay}
+                onClearDay={clearDay}
+                onCopyWeek={copyWeek}
+                onPasteWeek={pasteWeek}
+                canPasteDay={clipboard?.kind === 'day'}
+                canPasteWeek={clipboard?.kind === 'week'}
+                onAddTechnician={addTechnician}
+                onEditTechnician={editTechnician}
+                onRemoveTechnician={removeTechnician}
+                serviceDeskN1={schedule.serviceDeskN1 ? {
+                  layer: n1Layer,
+                  rowsById: n1RowsById,
+                  legend: n1Codes,
+                  onUpdatePause: updateN1Pause,
+                  onUpdateShift: updateN1Shift,
+                } : undefined}
+              />
+            )}
+            {showConflicts && (
+              <div className="conflict-panel-wrap">
+                <ConflictAlertsPanel ref={conflictPanelRef} conflicts={gridConflicts} onNavigate={(conflict) => {
+                  if (conflict.day) setSelection(new Set([cellKey(conflict.techId, conflict.day)]));
+                }} />
+              </div>
+            )}
           </>
         )}
-      </header>
 
-      <FirebaseDashboardBar
-        configured={firebaseDashboard.configured}
-        user={firebaseDashboard.user}
-        teams={firebaseDashboard.teams}
-        selectedTeamId={firebaseDashboard.selectedTeamId}
-        loading={firebaseDashboard.loading || firebaseBusy}
-        error={firebaseDashboard.error}
-        hasSchedule={Boolean(schedule)}
-        canPublish={Boolean(schedule && firebaseDashboard.user && firebaseDashboard.selectedTeam && !schedule.isDemo && schedule.technicians.length && (schedule.viewType === 'oncall' ? schedule.onCallRecords?.length : Object.values(schedule.cells).some((row) => Object.values(row).some(Boolean))))}
-        onTeamChange={firebaseDashboard.setSelectedTeamId}
-        onLogin={() => { firebaseDashboard.setError(null); void signInWithMicrosoft().catch((error) => firebaseDashboard.setError((error as Error).message)); }}
-        onLogout={() => void signOutDashboard().catch((error) => firebaseDashboard.setError((error as Error).message))}
-        onImport={() => fileInput.current?.click()}
-        onSaveDraft={() => {
-          if (schedule?.origin === 'demo-template') {
-            saveTestDriveSession(schedule);
-            setTestDriveAvailable(true);
-            notify('Test Drive salvo neste navegador.');
-          } else if (schedule?.origin === 'demo-workspace-package') {
-            demoWorkspace.saveLocalRevision();
-            notify('Revisão local do Ambiente de Demonstração registrada neste navegador.');
-          } else if (schedule && firebaseDashboard.selectedTeam) {
-            saveDraft(schedule, firebaseDashboard.selectedTeam.id);
-            setDraftAvailable(true);
-            notify(`Rascunho salvo para ${firebaseDashboard.selectedTeam.name}.`);
-          }
-        }}
-        onPublish={() => void openPublication()}
-        onSwaps={() => void openSwaps()}
-        onManageTeams={() => setShowTeamDialog(true)}
-      />
+        {activeSection === 'planner' && schedule && isSoc && (
+          <>
+            <SocPlanner
+              state={schedule}
+              compact={socCompact}
+              onCompactChange={(value) => { setSocCompact(value); localStorage.setItem('escala-dashboard:soc-compact', String(value)); }}
+              onMove={(item, day, shift: SocShiftId) => mutate((current) => moveSocAssignment(current, { ...item, toDay: day, shift }))}
+              onRemove={(technicianId, day) => mutate((current) => removeSocAssignment(current, technicianId, day))}
+              onEdit={(technicianId, day, value) => mutate((current) => updateSocAssignment(current, technicianId, day, value))}
+              focusedCell={plannerFocus}
+            />
+            {showConflicts && (
+              <div className="conflict-panel-wrap">
+                <ConflictAlertsPanel ref={conflictPanelRef} conflicts={gridConflicts} onNavigate={(conflict) => {
+                  if (conflict.day) setPlannerFocus({ technicianId: conflict.techId, day: conflict.day });
+                }} />
+              </div>
+            )}
+          </>
+        )}
 
-      {schedule && schedule.origin === 'demo-template' && (
-        <div className="n1-modebar" role="status">
-          <div>
-            <strong>Test Drive — dados fictícios salvos somente neste navegador</strong>
+        {activeSection === 'demo' && (
+          <div className="demo-section">
+            {!demoWorkspaceState && (
+              <div className="demo-section-empty">
+                <p>Nenhum Ambiente Demo carregado neste navegador.</p>
+                <div className="empty-actions">
+                  <button className="btn btn-primary" onClick={() => void loadDemoWorkspace()}>
+                    Ambiente de Demonstração
+                  </button>
+                  {demoWorkspace.hasPersistedDraft && (
+                    <button className="btn" onClick={() => void loadDemoWorkspace()}>
+                      Continuar Ambiente de Demonstração
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+            {demoWorkspaceState && (
+              <>
+                <DemoScenarioSummary
+                  pkg={demoWorkspaceState.draftPackage}
+                  sourcePublicationRevision={demoWorkspaceState.sourcePublicationRevision}
+                  localDraftRevision={demoWorkspaceState.localDraftRevision}
+                  dirty={demoWorkspaceState.dirty}
+                  diff={demoWorkspaceDiff}
+                />
+                <DemoPublicationPanel
+                  draftPackage={demoWorkspaceState.draftPackage}
+                  localDraftRevision={demoWorkspaceState.localDraftRevision}
+                  dirty={demoWorkspaceState.dirty}
+                  backendStatus={demoRemotePublication.backendStatus}
+                  firebaseAdminStatus={demoRemotePublication.firebaseAdminStatus}
+                  validation={demoRemotePublication.validation}
+                  busy={demoRemotePublication.busy}
+                  lastError={demoRemotePublication.lastError}
+                  onValidate={() => void validateDemoPublication()}
+                  onPublishClick={() => void openDemoPublishDialog()}
+                  onResetClick={() => setShowDemoRemoteResetDialog(true)}
+                />
+                <div className="demo-workspace-controls" aria-label="Controles do Ambiente de Demonstração">
+                  <div className="demo-workspace-tabs" role="tablist" aria-label="Times do Ambiente de Demonstração">
+                    {demoTeams.map((team) => (
+                      <button
+                        key={team.id}
+                        role="tab"
+                        aria-selected={schedule?.demoTeamId === team.id}
+                        className="btn"
+                        onClick={() => resetDemoSchedule(team.id)}
+                      >
+                        {team.name}
+                      </button>
+                    ))}
+                  </div>
+                  <button className="btn" onClick={() => setShowDemoManagerAssignmentsDialog(true)}>
+                    Responsáveis e aprovações
+                  </button>
+                  <button className="btn" onClick={() => setShowDemoChangeRequestsDialog(true)}>
+                    Solicitações Demo
+                  </button>
+                  <button className="btn" onClick={restoreDemoWorkspace}>
+                    Restaurar cenário de demonstração
+                  </button>
+                  <button className="btn" onClick={exportDemoWorkspace}>
+                    Exportar pacote Demo
+                  </button>
+                  <button
+                    className="btn demo-workspace-exit"
+                    onClick={() => {
+                      demoWorkspace.exit();
+                      history.reset(null);
+                      setSelection(new Set());
+                      setClipboard(null);
+                      navigate('home');
+                      notify('Ambiente de Demonstração fechado.');
+                    }}
+                  >
+                    Sair do Ambiente de Demonstração
+                  </button>
+                </div>
+              </>
+            )}
           </div>
-          <button
-            className="btn"
-            onClick={() => {
-              endTestDrive();
-              history.reset(null);
-              setTestDriveAvailable(false);
-              notify('Dados fictícios do Test Drive apagados.');
-            }}
-          >
-            Encerrar Test Drive e apagar dados locais
-          </button>
-        </div>
-      )}
+        )}
 
-      {schedule && schedule.origin === 'demo-workspace-package' && (
-        <>
-          <DemoWorkspaceBanner
-            workspaceId={demoWorkspaceState?.workspaceId ?? 'demo-v1'}
-            sourcePublicationRevision={demoWorkspaceState?.sourcePublicationRevision ?? 1}
-            dirty={demoWorkspaceState?.dirty ?? false}
+        {activeSection === 'official' && (
+          <OfficialPublicationWizard
+            officialPackage={officialPackage}
+            corporateLink={officialCorporateLink}
+            onCorporateLinkChange={setOfficialCorporateLink}
+            backendStatus={officialRemotePublication.backendStatus}
+            firebaseAdminStatus={officialRemotePublication.firebaseAdminStatus}
+            validation={officialRemotePublication.validation}
+            busy={officialRemotePublication.busy}
+            lastError={officialRemotePublication.lastError}
+            onValidate={() => void validateOfficialPublication()}
+            onPublishClick={() => void openOfficialPublishDialog()}
+            publishResult={officialPublishResult}
+            onGoToDemo={() => navigate('demo')}
           />
-          {demoWorkspaceState && (
-            <DemoScenarioSummary
-              pkg={demoWorkspaceState.draftPackage}
-              sourcePublicationRevision={demoWorkspaceState.sourcePublicationRevision}
-              localDraftRevision={demoWorkspaceState.localDraftRevision}
-              dirty={demoWorkspaceState.dirty}
-              diff={demoWorkspaceDiff}
-            />
-          )}
-          {demoWorkspaceState && (
-            <DemoPublicationPanel
-              draftPackage={demoWorkspaceState.draftPackage}
-              localDraftRevision={demoWorkspaceState.localDraftRevision}
-              dirty={demoWorkspaceState.dirty}
-              backendStatus={demoRemotePublication.backendStatus}
-              firebaseAdminStatus={demoRemotePublication.firebaseAdminStatus}
-              validation={demoRemotePublication.validation}
-              busy={demoRemotePublication.busy}
-              lastError={demoRemotePublication.lastError}
-              onValidate={() => void validateDemoPublication()}
-              onPublishClick={() => void openDemoPublishDialog()}
-              onResetClick={() => setShowDemoRemoteResetDialog(true)}
-            />
-          )}
-          {officialPackage && (
-            <OfficialPublicationPanel
-              officialPackage={officialPackage}
-              corporateLink={officialCorporateLink}
-              onCorporateLinkChange={setOfficialCorporateLink}
-              backendStatus={officialRemotePublication.backendStatus}
-              firebaseAdminStatus={officialRemotePublication.firebaseAdminStatus}
-              validation={officialRemotePublication.validation}
-              busy={officialRemotePublication.busy}
-              lastError={officialRemotePublication.lastError}
-              onValidate={() => void validateOfficialPublication()}
-              onPublishClick={() => void openOfficialPublishDialog()}
-            />
-          )}
-          <div className="demo-workspace-controls" aria-label="Controles do Ambiente de Demonstração">
-            <div className="demo-workspace-tabs" role="tablist" aria-label="Times do Ambiente de Demonstração">
-              {demoTeams.map((team) => (
-                <button
-                  key={team.id}
-                  role="tab"
-                  aria-selected={schedule.demoTeamId === team.id}
-                  className="btn"
-                  onClick={() => resetDemoSchedule(team.id)}
-                >
-                  {team.name}
-                </button>
-              ))}
+        )}
+
+        {activeSection === 'status' && (
+          <div className="status-section" aria-label="Histórico e status remoto">
+            <h2>Histórico / Status</h2>
+            <div className="status-grid">
+              <section className="status-card">
+                <h3>Ambiente Demo — workspace demo-v1</h3>
+                <dl>
+                  <div><dt>Backend</dt><dd>{demoRemotePublication.backendStatus}</dd></div>
+                  <div><dt>Firebase Admin</dt><dd>{demoRemotePublication.firebaseAdminStatus?.configured ? 'Configurado' : 'Não configurado'}</dd></div>
+                  <div><dt>Revisão ativa</dt><dd>{demoRemotePublication.firebaseAdminStatus?.activePublicationRevision ?? '—'}</dd></div>
+                  <div><dt>Último publish</dt><dd>{formatRemoteTimestamp(demoRemotePublication.firebaseAdminStatus?.lastPublishedAt)}</dd></div>
+                  <div><dt>Status</dt><dd>{demoRemotePublication.firebaseAdminStatus?.status ?? '—'}</dd></div>
+                </dl>
+              </section>
+              <section className="status-card">
+                <h3>Publicação Oficial — workspace ici-dev</h3>
+                <dl>
+                  <div><dt>Backend</dt><dd>{officialRemotePublication.backendStatus}</dd></div>
+                  <div><dt>Firebase Admin</dt><dd>{officialRemotePublication.firebaseAdminStatus?.configured ? 'Configurado' : 'Não configurado'}</dd></div>
+                  <div><dt>ALLOW_OFFICIAL_FIRESTORE_WRITE</dt><dd>{officialRemotePublication.firebaseAdminStatus?.allowOfficialFirestoreWrite ? 'true' : 'false'}</dd></div>
+                  <div><dt>Revisão ativa</dt><dd>{officialRemotePublication.firebaseAdminStatus?.activePublicationRevision ?? '—'}</dd></div>
+                  <div><dt>Último publish</dt><dd>{formatRemoteTimestamp(officialRemotePublication.firebaseAdminStatus?.lastPublishedAt)}</dd></div>
+                  <div><dt>Status</dt><dd>{officialRemotePublication.firebaseAdminStatus?.status ?? '—'}</dd></div>
+                </dl>
+              </section>
             </div>
             <button
+              type="button"
               className="btn"
-              onClick={() => setShowDemoManagerAssignmentsDialog(true)}
+              onClick={() => { void demoRemotePublication.refreshStatus(); void officialRemotePublication.refreshStatus(); }}
             >
-              Responsáveis e aprovações
-            </button>
-            <button
-              className="btn"
-              onClick={() => setShowDemoChangeRequestsDialog(true)}
-            >
-              Solicitações Demo
-            </button>
-            <button
-              className="btn"
-              onClick={restoreDemoWorkspace}
-            >
-              Restaurar cenário de demonstração
-            </button>
-            <button
-              className="btn"
-              onClick={exportDemoWorkspace}
-            >
-              Exportar pacote Demo
-            </button>
-            <button
-              className="btn demo-workspace-exit"
-              onClick={() => {
-                demoWorkspace.exit();
-                history.reset(null);
-                setSelection(new Set());
-                setClipboard(null);
-                notify('Ambiente de Demonstração fechado.');
-              }}
-            >
-              Sair do Ambiente de Demonstração
+              Atualizar status
             </button>
           </div>
-        </>
-      )}
+        )}
 
-      {schedule?.serviceDeskN1 && schedule.viewType !== 'oncall' && (
-        <div className="n1-modebar" aria-label="Visualização Service Desk N1">
-          <div>
-            <strong>Modo Service Desk N1</strong>
-            <span>turnos, pausas e atividades vinculados ao mesmo técnico</span>
-          </div>
-          <div className="n1-tabs" role="tablist" aria-label="Escalas do Service Desk N1">
-            <button
-              role="tab"
-              aria-selected={n1Layer === 'principal'}
-              className="btn"
-              onClick={() => {
-                setN1Layer('principal');
-                setSelection(new Set());
-                setClipboard(null);
-              }}
-            >
-              Escala principal
-            </button>
-            <button
-              role="tab"
-              aria-selected={n1Layer === 'email-garantia'}
-              className="btn"
-              disabled={schedule.serviceDeskN1.emailGuaranteeRows.length === 0}
-              title={schedule.serviceDeskN1.emailGuaranteeRows.length === 0 ? 'Esta aba não possui escala de e-mail e garantia.' : undefined}
-              onClick={() => {
-                setN1Layer('email-garantia');
-                setSelection(new Set());
-                setClipboard(null);
-              }}
-            >
-              E-mail e garantia
-            </button>
-          </div>
-          <span className="n1-layer-summary">
-            {visibleN1Rows.length} linha{visibleN1Rows.length === 1 ? '' : 's'} · nomes abreviados na grade; nome completo preservado
-          </span>
-        </div>
-      )}
-
-      {schedule && schedule.viewType !== 'oncall' && (
-        <div className="legend" aria-label="Legenda e preenchimento rápido">
-          <span className="hint">
-            {selection.size > 0
-              ? `Clique em um código para aplicar às ${selection.size} células selecionadas:`
-              : schedule.serviceDeskN1
-                ? `Legenda da ${n1Layer === 'principal' ? 'escala principal' : 'escala de e-mail e garantia'}:`
-                : 'Legenda (selecione células para preencher em lote):'}
-          </span>
-          {schedule.serviceDeskN1
-            ? n1Codes.map((item) => (
-                <button
-                  key={item.code}
-                  className={`chip n1-legend-code n1-code-${item.code.replace(/[^A-Z0-9]+/g, '-')}`}
-                  disabled={selection.size === 0}
-                  title={item.description}
-                  onClick={() => {
-                    applyShift([...selection], n1CellValue(item.code));
-                    notify(`${item.code} · ${item.label} aplicado a ${selection.size} células.`);
-                  }}
-                >
-                  {item.code} · {item.label}
-                </button>
-              ))
-            : SHIFTS.map((s) => (
-                <button
-                  key={s.id}
-                  className="chip"
-                  disabled={selection.size === 0}
-                  style={{
-                    ['--chip-bg' as string]: `var(--sh-${s.id}-bg)`,
-                    ['--chip-fg' as string]: `var(--sh-${s.id}-fg)`,
-                  }}
-                  onClick={() => {
-                    applyShift([...selection], { shift: s.id });
-                    notify(`${s.label} aplicado a ${selection.size} células.`);
-                  }}
-                >
-                  {s.code} · {s.label}
-                </button>
-              ))}
-          <button
-            className="chip chip-clear"
-            disabled={selection.size === 0}
-            onClick={() => setSelection(new Set())}
-          >
-            Desmarcar
-          </button>
-        </div>
-      )}
-
-      {isSoc && <div className="soc-viewbar">
-        <div role="tablist" aria-label="Visualização da Escala SOC">
-          <button className="btn" aria-selected={socView === 'grid'} onClick={() => { setSocView('grid'); localStorage.setItem('escala-dashboard:soc-view', 'grid'); }}>Grade</button>
-          <button className="btn" aria-selected={socView === 'planner'} onClick={() => { setSocView('planner'); localStorage.setItem('escala-dashboard:soc-view', 'planner'); }}>Planejador</button>
-        </div>
-        <span>As duas visualizações editam a mesma escala.</span>
-      </div>}
-
-      {!schedule && (
-        <main className="empty">
-          <div className={`dropzone${dragOver ? ' dragover' : ''}`}>
-            <h1>Comece importando uma planilha de escala</h1>
-            <p>
-              Arraste um arquivo .xls ou .xlsx para cá. O painel identifica as abas e os meses e
-              você escolhe o período ou bloco que deseja importar.
+        {activeSection === 'settings' && (
+          <div className="settings-section" aria-label="Configurações">
+            <h2>Configurações</h2>
+            <label className="settings-toggle">
+              <input
+                type="checkbox"
+                checked={uiCompact}
+                onChange={() => setUiCompact((prev) => { const next = !prev; storeUiCompact(next); return next; })}
+              />
+              Modo compacto (reduz espaçamento em toda a interface)
+            </label>
+            <label className="settings-toggle">
+              <input
+                type="checkbox"
+                checked={socCompact}
+                onChange={(e) => { setSocCompact(e.target.checked); localStorage.setItem('escala-dashboard:soc-compact', String(e.target.checked)); }}
+              />
+              Modo compacto do Planejador SOC/NOC
+            </label>
+            <p className="muted">
+              Backend Express configurado em <code>{(import.meta.env.VITE_DASHBOARD_API_BASE_URL as string | undefined) || 'http://127.0.0.1:3001'}</code>.
             </p>
-            <div className="empty-actions">
-              <button className="btn btn-primary" onClick={() => fileInput.current?.click()}>
-                Importar arquivo
-              </button>
-              <button
-                className="btn"
-                onClick={() => setTemplateWizardMode('demo')}
-              >
-                Test Drive — dados fictícios locais
-              </button>
-              <button
-                className="btn"
-                onClick={() => void loadDemoWorkspace()}
-              >
-                Ambiente de Demonstração
-              </button>
-              <button
-                className="btn"
-                onClick={() => setTemplateWizardMode('empty')}
-              >
-                Criar escala vazia
-              </button>
-              {draftAvailable && (
-                <button
-                  className="btn"
-                  onClick={() => {
-                    const d = loadDraft();
-                    if (d) {
-                      history.reset(d.state);
-                      notify(`Rascunho de ${new Date(d.savedAt).toLocaleString('pt-BR')} restaurado.`);
-                    } else {
-                      setDraftAvailable(false);
-                      notify('Nenhum rascunho válido encontrado.');
-                    }
-                  }}
-                >
-                  Continuar rascunho salvo
-                </button>
-              )}
-              {testDriveAvailable && (
-                <button
-                  className="btn"
-                  onClick={() => {
-                    const session = loadTestDriveSession();
-                    if (session) {
-                      history.reset(session.state);
-                      notify(`Test Drive de ${new Date(session.savedAt).toLocaleString('pt-BR')} restaurado.`);
-                    } else {
-                      setTestDriveAvailable(false);
-                      notify('Nenhum Test Drive válido encontrado.');
-                    }
-                  }}
-                >
-                  Continuar Test Drive
-                </button>
-              )}
-              {demoWorkspace.hasPersistedDraft && (
-                <button
-                  className="btn"
-                  onClick={() => void loadDemoWorkspace()}
-                >
-                  Continuar Ambiente de Demonstração
-                </button>
-              )}
-            </div>
-            <div className="flow">
-              Importar arquivo → escolher período/bloco → revisar → editar → salvar ou exportar
-            </div>
           </div>
-        </main>
-      )}
+        )}
+      </AppShell>
 
       {templateWizardMode && (
         <ScheduleTemplateWizard
@@ -1363,6 +1684,7 @@ export default function App() {
             setSelection(new Set());
             setClipboard(null);
             setTemplateWizardMode(null);
+            navigate('grid');
             notify(
               state.isDemo
                 ? 'Test Drive carregado — dados fictícios locais.'
@@ -1370,79 +1692,6 @@ export default function App() {
             );
           }}
         />
-      )}
-
-      {schedule && schedule.viewType === 'oncall' && (
-        <OnCallEditor
-          records={schedule.onCallRecords ?? []}
-          technicians={schedule.technicians}
-          monthKey={schedule.monthKey}
-          onChange={updateOnCallRecord}
-          onAddRecord={addOnCallRecord}
-          onDeleteRecord={deleteOnCallRecord}
-          onMoveRecord={moveOnCallRecord}
-          onAddTechnicians={addOnCallTechnicians}
-          onRenameTechnician={renameOnCallTechnician}
-          onSetTechnicianColor={setOnCallTechnicianColor}
-          onRemoveTechnician={removeOnCallTechnician}
-          onSetMonth={setOnCallMonth}
-          onAutoFill={autoFillOnCallMonth}
-          onClearMonth={clearOnCallMonth}
-        />
-      )}
-
-      {schedule && visibleSchedule && schedule.viewType !== 'oncall' && (!isSoc || socView === 'grid') && (
-        <>
-          <ScheduleGrid
-            state={visibleSchedule}
-            selection={selection}
-            conflicts={gridConflicts}
-            onSelectionChange={setSelection}
-            onApplyShift={applyShift}
-            onCopyValueTo={copyValueTo}
-            onFillRange={fillRange}
-            onCopyDay={copyDay}
-            onPasteDay={pasteDay}
-            onClearDay={clearDay}
-            onCopyWeek={copyWeek}
-            onPasteWeek={pasteWeek}
-            canPasteDay={clipboard?.kind === 'day'}
-            canPasteWeek={clipboard?.kind === 'week'}
-            onAddTechnician={addTechnician}
-            onEditTechnician={editTechnician}
-            onRemoveTechnician={removeTechnician}
-            serviceDeskN1={schedule.serviceDeskN1 ? {
-              layer: n1Layer,
-              rowsById: n1RowsById,
-              legend: n1Codes,
-              onUpdatePause: updateN1Pause,
-              onUpdateShift: updateN1Shift,
-            } : undefined}
-          />
-          {showConflicts && (
-            <div className="conflict-panel-wrap">
-              <ConflictAlertsPanel ref={conflictPanelRef} conflicts={gridConflicts} onNavigate={(conflict) => {
-                if (conflict.day) setSelection(new Set([cellKey(conflict.techId, conflict.day)]));
-              }} />
-            </div>
-          )}
-        </>
-      )}
-      {schedule && isSoc && socView === 'planner' && <SocPlanner
-        state={schedule}
-        compact={socCompact}
-        onCompactChange={(value) => { setSocCompact(value); localStorage.setItem('escala-dashboard:soc-compact', String(value)); }}
-        onMove={(item, day, shift: SocShiftId) => mutate((current) => moveSocAssignment(current, { ...item, toDay: day, shift }))}
-        onRemove={(technicianId, day) => mutate((current) => removeSocAssignment(current, technicianId, day))}
-        onEdit={(technicianId, day, value) => mutate((current) => updateSocAssignment(current, technicianId, day, value))}
-        focusedCell={plannerFocus}
-      />}
-      {schedule && isSoc && socView === 'planner' && showConflicts && (
-        <div className="conflict-panel-wrap">
-          <ConflictAlertsPanel ref={conflictPanelRef} conflicts={gridConflicts} onNavigate={(conflict) => {
-            if (conflict.day) setPlannerFocus({ technicianId: conflict.techId, day: conflict.day });
-          }} />
-        </div>
       )}
 
       {pending && (
@@ -1512,30 +1761,6 @@ export default function App() {
         <div className="toast" role="status">
           {toast}
         </div>
-      )}
-
-      {schedule && schedule.origin !== 'demo-workspace-package' && (
-        <span className="muted" style={{ position: 'fixed', bottom: 6, right: 12, fontSize: 11 }}>
-          rascunho salvo automaticamente neste navegador
-          {' · '}
-          <button
-            className="icon-btn"
-            style={{ fontSize: 11 }}
-            onClick={() => {
-              if (schedule.origin === 'demo-template') {
-                endTestDrive();
-                setTestDriveAvailable(false);
-                notify('Dados fictícios do Test Drive apagados.');
-              } else {
-                clearDraft(schedule, firebaseDashboard.selectedTeamId || undefined);
-                setDraftAvailable(false);
-                notify('Rascunho local apagado.');
-              }
-            }}
-          >
-            apagar rascunho
-          </button>
-        </span>
       )}
     </div>
   );
