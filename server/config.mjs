@@ -28,5 +28,6 @@ export function loadConfig(env = process.env) {
     maxJsonBodyBytes: parseNumber(env.DASHBOARD_MAX_JSON_BODY_BYTES, DEFAULT_MAX_JSON_BODY_BYTES),
     firebaseProjectId: env.FIREBASE_PROJECT_ID,
     allowDemoFirestoreWrite: env.ALLOW_DEMO_FIRESTORE_WRITE === 'true',
+    allowOfficialFirestoreWrite: env.ALLOW_OFFICIAL_FIRESTORE_WRITE === 'true',
   };
 }

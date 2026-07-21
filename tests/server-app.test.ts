@@ -192,6 +192,21 @@ describe('server app', () => {
     });
   });
 
+  it('retorna status oficial ainda nao configurado, com a flag de escrita oficial refletida', async () => {
+    const testServer = await startTestServer({ allowOfficialFirestoreWrite: false });
+
+    const response = await appFetch(testServer, '/api/official/status');
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({
+      configured: false,
+      workspaceId: 'ici-dev',
+      status: 'FIREBASE_ADMIN_NOT_CONFIGURED',
+      allowOfficialFirestoreWrite: false,
+    });
+  });
+
   it('habilita CORS para origem permitida exata', async () => {
     const allowedOrigin = 'http://127.0.0.1:5173';
     const testServer = await startTestServer({ allowedOrigins: [allowedOrigin] });

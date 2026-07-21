@@ -1,20 +1,24 @@
 import { Router } from 'express';
-import { assertDemoOnlyWritePlan } from '../domain/assertDemoOnlyWritePlan.mjs';
-import { validateDemoPackage } from '../domain/demoPackageValidator.mjs';
-import { buildPublicationPlan } from '../domain/demoPublicationPlanner.mjs';
+import { assertOfficialOnlyWritePlan } from '../domain/assertOfficialOnlyWritePlan.mjs';
 import { executeAtomicPublication } from '../domain/executeAtomicPublication.mjs';
+import { validateOfficialCorporateLink, validateOfficialPackage } from '../domain/officialPackageValidator.mjs';
+import { buildOfficialPublicationPlan } from '../domain/officialPublicationPlanner.mjs';
 import { PublicationError } from '../errors.mjs';
 import { resolvePublicationStore } from '../infra/resolvePublicationStore.mjs';
 
-const DEMO_WORKSPACE_ID = 'demo-v1';
+// Workspace oficial fixado no servidor (adendo FASE 14D): o cliente nunca escolhe
+// o workspace. Se o corpo da requisicao informar um workspaceId, so e aceito
+// quando for exatamente este - qualquer outro valor e rejeitado, nunca usado.
+const OFFICIAL_WORKSPACE_ID = 'ici-dev';
+const OFFICIAL_CONFIRMATION_PHRASE = 'PUBLISH OFFICIAL ici-dev';
 
-export function createPublishRouter({ getFirebaseAdmin, config, store }) {
+export function createOfficialPublishRouter({ getFirebaseAdmin, config, store }) {
   const router = Router();
 
   router.post('/', async (req, res, next) => {
     try {
-      if (req.body?.workspaceId !== DEMO_WORKSPACE_ID) {
-        throw new PublicationError('WORKSPACE_NOT_ALLOWED', 'Somente o workspace demo-v1 pode ser publicado.');
+      if (req.body?.workspaceId !== undefined && req.body.workspaceId !== OFFICIAL_WORKSPACE_ID) {
+        throw new PublicationError('WORKSPACE_NOT_ALLOWED', 'Somente o workspace ici-dev pode ser publicado por esta rota.');
       }
 
       const mode = req.body?.mode;
@@ -22,7 +26,7 @@ export function createPublishRouter({ getFirebaseAdmin, config, store }) {
         throw new PublicationError('INVALID_PACKAGE', 'Modo de publicação inválido. Use DRY_RUN ou COMMIT.');
       }
 
-      const validation = validateDemoPackage({
+      const validation = validateOfficialPackage({
         packageRaw: req.body.packageRaw,
         manifestRaw: req.body.manifestRaw,
       });
@@ -31,15 +35,20 @@ export function createPublishRouter({ getFirebaseAdmin, config, store }) {
         throw new PublicationError(validation.code, validation.message);
       }
 
+      const corporateLinkValidation = validateOfficialCorporateLink(validation.package, req.body.corporateLink);
+      if (!corporateLinkValidation.ok) {
+        throw new PublicationError(corporateLinkValidation.code, corporateLinkValidation.message);
+      }
+
       if (mode === 'COMMIT') {
-        if (config.allowDemoFirestoreWrite !== true) {
+        if (config.allowOfficialFirestoreWrite !== true) {
           throw new PublicationError(
-            'DEMO_WRITE_DISABLED',
-            'A escrita no Firestore está desabilitada (ALLOW_DEMO_FIRESTORE_WRITE não é true).',
+            'OFFICIAL_WRITE_DISABLED',
+            'Publicação oficial desabilitada neste ambiente (ALLOW_OFFICIAL_FIRESTORE_WRITE não é true).',
           );
         }
 
-        if (req.body?.confirmation !== 'PUBLISH DEMO demo-v1') {
+        if (req.body?.confirmation !== OFFICIAL_CONFIRMATION_PHRASE) {
           throw new PublicationError('INVALID_CONFIRMATION', 'Frase de confirmação ausente ou incorreta.');
         }
 
@@ -55,16 +64,18 @@ export function createPublishRouter({ getFirebaseAdmin, config, store }) {
 
         const result = await executeAtomicPublication({
           store: resolved.store,
-          workspaceId: DEMO_WORKSPACE_ID,
+          workspaceId: OFFICIAL_WORKSPACE_ID,
           expectedActiveRevision: req.body.expectedActiveRevision ?? 0,
           idempotencyKey,
-          buildPlan: buildPublicationPlan,
-          assertPlan: assertDemoOnlyWritePlan,
+          buildPlan: buildOfficialPublicationPlan,
+          assertPlan: assertOfficialOnlyWritePlan,
           meta: {
             publishedByMode: 'COMMIT',
-            source: 'DASHBOARD_MANUAL_PUBLISH',
+            source: 'DASHBOARD_OFFICIAL_PUBLISH',
             dryRun: false,
             schemaVersion: 1,
+            corporateLinkMemberId: req.body.corporateLink?.memberId,
+            corporateLinkTeamId: req.body.corporateLink?.teamId,
           },
           package: validation.package,
           writeFailureCode: 'FIRESTORE_WRITE_FAILED',
@@ -72,7 +83,7 @@ export function createPublishRouter({ getFirebaseAdmin, config, store }) {
           activationFailureCode: 'PUBLICATION_ACTIVATION_FAILED',
           activationFailureMessage: 'A revisão foi preparada mas não pôde ser ativada. A revisão anterior continua ativa.',
           onFailureLog: ({ workspaceId, revision, errorMessage, errorCode }) => {
-            console.error('demo_publish_commit_failed', {
+            console.error('official_publish_commit_failed', {
               requestId: req.requestId,
               workspaceId,
               revision,
@@ -86,7 +97,7 @@ export function createPublishRouter({ getFirebaseAdmin, config, store }) {
           const { record } = result;
           res.status(200).json({
             status: 'PUBLISHED',
-            workspaceId: DEMO_WORKSPACE_ID,
+            workspaceId: OFFICIAL_WORKSPACE_ID,
             publicationRevision: record.publicationRevision,
             counts: record.counts,
             publishedAt: record.publishedAt,
@@ -97,7 +108,7 @@ export function createPublishRouter({ getFirebaseAdmin, config, store }) {
 
         res.status(200).json({
           status: 'PUBLISHED',
-          workspaceId: DEMO_WORKSPACE_ID,
+          workspaceId: OFFICIAL_WORKSPACE_ID,
           publicationRevision: result.nextRevision,
           counts: result.counts,
           publishedAt: result.publishedAt,
@@ -111,7 +122,7 @@ export function createPublishRouter({ getFirebaseAdmin, config, store }) {
         throw new PublicationError('FIREBASE_ADMIN_NOT_CONFIGURED', 'Firebase Admin não está configurado.');
       }
 
-      const status = await resolved.store.getWorkspaceStatus(DEMO_WORKSPACE_ID);
+      const status = await resolved.store.getWorkspaceStatus(OFFICIAL_WORKSPACE_ID);
       const expectedActiveRevision = req.body.expectedActiveRevision ?? 0;
       if (expectedActiveRevision !== status.publicationRevision) {
         throw new PublicationError(
@@ -126,15 +137,15 @@ export function createPublishRouter({ getFirebaseAdmin, config, store }) {
         );
       }
 
-      const plan = buildPublicationPlan({
+      const plan = buildOfficialPublicationPlan({
         package: validation.package,
         currentActiveRevision: status.publicationRevision,
       });
-      assertDemoOnlyWritePlan(plan);
+      assertOfficialOnlyWritePlan(plan);
 
       res.status(200).json({
         status: 'VALIDATED',
-        workspaceId: DEMO_WORKSPACE_ID,
+        workspaceId: OFFICIAL_WORKSPACE_ID,
         currentActiveRevision: status.publicationRevision,
         nextPublicationRevision: plan.expectedNextRevision,
         counts: plan.counts,

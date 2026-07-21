@@ -5,6 +5,7 @@ export type DashboardApiConfig = {
   maxJsonBodyBytes: number;
   firebaseProjectId: string | undefined;
   allowDemoFirestoreWrite: boolean;
+  allowOfficialFirestoreWrite: boolean;
 };
 
 export function loadConfig(env?: Record<string, string | undefined>): DashboardApiConfig;

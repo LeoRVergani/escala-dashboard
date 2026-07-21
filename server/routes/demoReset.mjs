@@ -2,8 +2,10 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { Router } from 'express';
+import { assertDemoOnlyWritePlan } from '../domain/assertDemoOnlyWritePlan.mjs';
 import { validateDemoPackage } from '../domain/demoPackageValidator.mjs';
 import { executeAtomicPublication } from '../domain/executeAtomicPublication.mjs';
+import { buildPublicationPlan } from '../domain/demoPublicationPlanner.mjs';
 import { PublicationError } from '../errors.mjs';
 import { resolvePublicationStore } from '../infra/resolvePublicationStore.mjs';
 
@@ -91,6 +93,8 @@ export function createDemoResetRouter({
         workspaceId: DEMO_WORKSPACE_ID,
         expectedActiveRevision: req.body.expectedActiveRevision ?? 0,
         idempotencyKey,
+        buildPlan: buildPublicationPlan,
+        assertPlan: assertDemoOnlyWritePlan,
         meta: {
           publishedByMode: 'RESET',
           source: 'DEMO_REMOTE_RESET',

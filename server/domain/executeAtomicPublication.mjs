@@ -1,5 +1,3 @@
-import { assertDemoOnlyWritePlan } from './assertDemoOnlyWritePlan.mjs';
-import { buildPublicationPlan } from './demoPublicationPlanner.mjs';
 import { PublicationError } from '../errors.mjs';
 
 export async function executeAtomicPublication({
@@ -9,6 +7,8 @@ export async function executeAtomicPublication({
   idempotencyKey,
   meta,
   package: pkg,
+  buildPlan,
+  assertPlan,
   writeFailureCode,
   writeFailureMessage,
   activationFailureCode,
@@ -27,11 +27,11 @@ export async function executeAtomicPublication({
   }
 
   const { nextRevision } = reservation;
-  const plan = buildPublicationPlan({
+  const plan = buildPlan({
     package: pkg,
     currentActiveRevision: nextRevision - 1,
   });
-  assertDemoOnlyWritePlan(plan);
+  assertPlan(plan);
 
   let writeCounts;
   try {
