@@ -43,6 +43,8 @@ import { DemoWorkspaceBanner } from './components/DemoWorkspaceBanner';
 import { DemoScenarioSummary } from './components/DemoScenarioSummary';
 import { DemoPublicationPanel } from './components/DemoPublicationPanel';
 import { DemoPublishDialog } from './components/DemoPublishDialog';
+import { OfficialPublicationPanel } from './components/OfficialPublicationPanel';
+import { OfficialPublishDialog } from './components/OfficialPublishDialog';
 import { DemoRemoteResetDialog } from './components/DemoRemoteResetDialog';
 import { DemoChangeRequestsDialog } from './components/DemoChangeRequestsDialog';
 import { PublicationDialog } from './components/PublicationDialog';
@@ -56,8 +58,10 @@ import { moveSocAssignment, removeSocAssignment, updateSocAssignment, type SocSh
 import { useFirebaseDashboard } from './hooks/useFirebaseDashboard';
 import { useDemoWorkspace } from './hooks/useDemoWorkspace';
 import { useDemoRemotePublication, type DemoValidationResult } from './hooks/useDemoRemotePublication';
+import { useOfficialRemotePublication, type OfficialValidationResult } from './hooks/useOfficialRemotePublication';
 import type { DemoWorkspaceDiff } from './lib/demoWorkspace/diff';
 import type { DemoPublicationPackage } from './lib/demoWorkspace/dto';
+import { toOfficialPackage, type OfficialCorporateLink } from './lib/officialWorkspace/retarget';
 import { signInWithMicrosoft, signOutDashboard } from './lib/authRepository';
 import { buildPublicationPreview, type PublicationPreview } from './lib/publicationPreview';
 import { publishStructuredSchedule, type PublicationMode } from './lib/schedulePublishRepository';
@@ -94,6 +98,7 @@ export default function App() {
   const demoWorkspace = useDemoWorkspace();
   const schedule = history.state;
   const demoRemotePublication = useDemoRemotePublication(schedule?.origin === 'demo-workspace-package');
+  const officialRemotePublication = useOfficialRemotePublication(schedule?.origin === 'demo-workspace-package');
   const [n1Layer, setN1Layer] = useState<ServiceDeskN1Layer>('principal');
   const [pending, setPending] = useState<PendingImport | null>(null);
   const [selection, setSelection] = useState<Set<CellKey>>(new Set());
@@ -116,6 +121,8 @@ export default function App() {
   const [showDemoChangeRequestsDialog, setShowDemoChangeRequestsDialog] = useState(false);
   const [showDemoPublishDialog, setShowDemoPublishDialog] = useState(false);
   const [showDemoRemoteResetDialog, setShowDemoRemoteResetDialog] = useState(false);
+  const [officialCorporateLink, setOfficialCorporateLink] = useState<Partial<OfficialCorporateLink>>({});
+  const [showOfficialPublishDialog, setShowOfficialPublishDialog] = useState(false);
   // Snapshot congelado no momento da validação: o modal de confirmação e o publish() de fato
   // enviado usam SEMPRE estes valores, nunca o estado "vivo" de demoWorkspace/diff - evita que
   // uma edição no rascunho entre "Validar" e "Publicar" deixe o modal (ou o COMMIT) desalinhado
@@ -125,6 +132,11 @@ export default function App() {
     localDraftRevision: number;
     validation: DemoValidationResult;
     diff: DemoWorkspaceDiff | null;
+  } | null>(null);
+  const [officialPublishSnapshot, setOfficialPublishSnapshot] = useState<{
+    officialPackage: DemoPublicationPackage;
+    corporateLink: OfficialCorporateLink;
+    validation: OfficialValidationResult;
   } | null>(null);
   const [firebaseBusy, setFirebaseBusy] = useState(false);
   const [templateWizardMode, setTemplateWizardMode] = useState<'empty' | 'demo' | null>(null);
@@ -180,6 +192,14 @@ export default function App() {
     if (!demoWorkspaceState?.dirty) return null;
     return diffDemoPackages(demoWorkspaceState.baselinePackage, demoWorkspaceState.draftPackage);
   }, [demoWorkspaceState]);
+
+  // Publicação Oficial reaproveita o mesmo pacote já carregado pelo fluxo de importação Demo
+  // (mesmo parser/adapter) só retitulando workspaceId para ici-dev - não é um pipeline de
+  // importação separado. Ver docs/spec/64-ESCALAICI-DASHBOARD-PUBLICACAO-OFICIAL.md.
+  const officialPackage = useMemo(
+    () => (demoWorkspaceState ? toOfficialPackage(demoWorkspaceState.draftPackage) : null),
+    [demoWorkspaceState],
+  );
 
   const resetDemoSchedule = useCallback((teamId: string): boolean => {
     const current = demoWorkspace.state;
@@ -257,6 +277,34 @@ export default function App() {
     setDemoPublishSnapshot(null);
     notify(`Ambiente de Demonstração publicado na revisão ${result.publicationRevision}.`);
   }, [demoPublishSnapshot, demoRemotePublication, notify]);
+
+  const validateOfficialPublication = useCallback(async () => {
+    if (!officialPackage || !officialCorporateLink.memberId || !officialCorporateLink.teamId) return;
+    await officialRemotePublication.validate(officialPackage, officialCorporateLink as OfficialCorporateLink);
+  }, [officialPackage, officialCorporateLink, officialRemotePublication]);
+
+  const openOfficialPublishDialog = useCallback(async () => {
+    if (officialRemotePublication.busy !== 'IDLE') return;
+    if (!officialPackage || !officialCorporateLink.memberId || !officialCorporateLink.teamId) return;
+    const link = officialCorporateLink as OfficialCorporateLink;
+    // Mesmo raciocínio do snapshot Demo (ver openDemoPublishDialog acima): revalida o pacote
+    // atual e congela o resultado - o modal e o publish() usam sempre este snapshot, nunca o
+    // estado "vivo", para não publicar algo diferente do que foi mostrado na confirmação.
+    const validation = await officialRemotePublication.validate(officialPackage, link);
+    if (!validation) return;
+    setOfficialPublishSnapshot({ officialPackage, corporateLink: link, validation });
+    setShowOfficialPublishDialog(true);
+  }, [officialPackage, officialCorporateLink, officialRemotePublication]);
+
+  const confirmOfficialPublication = useCallback(async () => {
+    const snapshot = officialPublishSnapshot;
+    if (!snapshot) return;
+    const result = await officialRemotePublication.publish(snapshot.officialPackage, snapshot.corporateLink);
+    if (!result.ok) return;
+    setShowOfficialPublishDialog(false);
+    setOfficialPublishSnapshot(null);
+    notify(`Workspace oficial ici-dev publicado na revisão ${result.publicationRevision}.`);
+  }, [officialPublishSnapshot, officialRemotePublication, notify]);
 
   const confirmDemoRemoteReset = useCallback(async () => {
     const result = await demoRemotePublication.resetRemote();
@@ -891,7 +939,7 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           Painel de Escalas
-          <small>v1.12.0 · importar → escolher período/bloco → revisar → editar → publicar</small>
+          <small>v1.13.0 · importar → escolher período/bloco → revisar → editar → publicar</small>
         </div>
         {schedule && (
           <>
@@ -1042,6 +1090,20 @@ export default function App() {
               onValidate={() => void validateDemoPublication()}
               onPublishClick={() => void openDemoPublishDialog()}
               onResetClick={() => setShowDemoRemoteResetDialog(true)}
+            />
+          )}
+          {officialPackage && (
+            <OfficialPublicationPanel
+              officialPackage={officialPackage}
+              corporateLink={officialCorporateLink}
+              onCorporateLinkChange={setOfficialCorporateLink}
+              backendStatus={officialRemotePublication.backendStatus}
+              firebaseAdminStatus={officialRemotePublication.firebaseAdminStatus}
+              validation={officialRemotePublication.validation}
+              busy={officialRemotePublication.busy}
+              lastError={officialRemotePublication.lastError}
+              onValidate={() => void validateOfficialPublication()}
+              onPublishClick={() => void openOfficialPublishDialog()}
             />
           )}
           <div className="demo-workspace-controls" aria-label="Controles do Ambiente de Demonstração">
@@ -1416,6 +1478,20 @@ export default function App() {
             setDemoPublishSnapshot(null);
           }}
           onPublish={() => void confirmDemoPublication()}
+        />
+      )}
+      {showOfficialPublishDialog && officialPublishSnapshot && (
+        <OfficialPublishDialog
+          officialPackage={officialPublishSnapshot.officialPackage}
+          corporateLink={officialPublishSnapshot.corporateLink}
+          validation={officialPublishSnapshot.validation}
+          busy={officialRemotePublication.busy}
+          lastError={officialRemotePublication.lastError}
+          onCancel={() => {
+            setShowOfficialPublishDialog(false);
+            setOfficialPublishSnapshot(null);
+          }}
+          onPublish={() => void confirmOfficialPublication()}
         />
       )}
       {showDemoRemoteResetDialog && (
