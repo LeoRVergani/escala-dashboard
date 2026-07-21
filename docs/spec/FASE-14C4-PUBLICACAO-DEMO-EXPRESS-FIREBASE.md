@@ -86,7 +86,7 @@ ativa atual (lida do Firestore real — por isso um dry-run completo também exi
 Admin configurado, ver "Limitações" abaixo); calcula a próxima revisão e as contagens; **não
 escreve nada** (`writesPerformed: 0`).
 
-## Commit e modelo de publicação atômica
+## Commit e modelo de publicação revisionada
 
 `server/domain/executeAtomicPublication.mjs` implementa, para `COMMIT` e para o reset:
 
@@ -97,13 +97,25 @@ escreve nada** (`writesPerformed: 0`).
    concorrência), a transação falha com `PUBLICATION_REVISION_CONFLICT` (409) — nunca
    sobrescreve silenciosamente.
 2. `writeRevisionDocuments` — grava as entidades em batches (até 400 operações por batch,
-   com margem abaixo do limite do Firestore).
+   com margem abaixo do limite do Firestore) no snapshot isolado da revisão candidata:
+   `workspaces/demo-v1/revisions/{revision}/{collection}/{documentId}`. Nenhuma entidade é
+   gravada nas coleções vivas raiz (`teams`, `members`, `schedule_assignments`, etc.).
 3. `activateRevision` — transação que **revalida** a revisão anterior antes de escrever, e só
    então ativa `workspaces/demo-v1` e marca o `publication_record` como `ACTIVE`. Só depois de
    todas as escritas de dados terem terminado.
 4. Falha em qualquer passo → `markPublicationFailed` (status `FAILED`, motivo sanitizado) e a
    revisão anterior **continua ativa**. O ponteiro nunca é atualizado antes das escritas
    terminarem, e a revisão anterior nunca é apagada.
+
+Como cada publicação envia o pacote completo, remoções são estruturais: se uma entidade não
+existe no pacote da revisão nova, ela simplesmente não existe no snapshot dessa revisão. Não
+há diff/delete contra coleções vivas.
+
+Uma falha no meio de múltiplos batches pode deixar documentos parciais apenas no caminho da
+revisão candidata. Como consumidores resolvem primeiro o ponteiro ativo e só leem o snapshot
+apontado por ele, uma candidata incompleta nunca vaza para leitura normal. Um retry com a
+mesma `idempotencyKey` e registro `FAILED` reusa a mesma próxima revisão e sobrescreve os
+mesmos IDs determinísticos no mesmo caminho de snapshot, sem duplicar documentos.
 
 ## Idempotência e concorrência
 
@@ -112,7 +124,8 @@ escreve nada** (`writesPerformed: 0`).
   `reset-demo-v1:${revisãoAtiva}` para reset).
 - Uma chave já `ACTIVE` retorna o mesmo resultado sem nova escrita; uma chave ainda
   `PREPARING` (publicação em andamento) retorna `409 IDEMPOTENCY_CONFLICT` em vez de
-  disparar uma segunda escrita real; uma chave `FAILED` pode ser retentada.
+  disparar uma segunda escrita real; uma chave `FAILED` pode ser retentada se ainda
+  corresponde à próxima revisão candidata.
 - Todo esse controle acontece **dentro de uma única transação** de `reserveRevision` — não há
   janela entre "ler a revisão atual" e "reservar a próxima" onde duas requisições concorrentes
   possam colidir silenciosamente (ver histórico de revisão de código abaixo).
@@ -127,13 +140,41 @@ herda toda a atomicidade/idempotência/concorrência do publish. A revisão só 
 volta), o histórico de revisões anteriores é preservado, e o workspace de produção nunca é
 tocado (o loader só conhece o caminho fixo de `fixtures/demo/`).
 
-## Coleções e documentos
+## Snapshots, coleções e documentos
 
-`workspaces`, `members`, `teams`, `member_team_memberships`, `team_manager_assignments`,
-`schedule_periods`, `schedule_assignments`, `schedule_change_requests`, `publication_records`
-(Spec 57 do KMP). Cada entidade escrita carrega `workspaceId: 'demo-v1'`,
-`publicationRevision` atribuída pelo servidor, e `schemaVersion`. IDs determinísticos da
-fixture/rascunho são preservados (nunca regenerados).
+Documentos de controle continuam em coleções raiz:
+
+- `workspaces/demo-v1` contém o ponteiro ativo `publicationRevision` e metadados sanitizados
+  do workspace.
+- `publication_records/{demo-v1_revision}` registra reserva, status (`PREPARING`, `ACTIVE`,
+  `FAILED`), `idempotencyKey`, contagens e timestamp real de publicação.
+
+Entidades publicadas ficam somente sob o snapshot revisionado:
+
+```
+workspaces/demo-v1/revisions/{revision}/teams/{teamId}
+workspaces/demo-v1/revisions/{revision}/members/{memberId}
+workspaces/demo-v1/revisions/{revision}/member_team_memberships/{membershipId}
+workspaces/demo-v1/revisions/{revision}/team_manager_assignments/{assignmentId}
+workspaces/demo-v1/revisions/{revision}/schedule_periods/{periodId}
+workspaces/demo-v1/revisions/{revision}/schedule_assignments/{assignmentId}
+workspaces/demo-v1/revisions/{revision}/schedule_change_requests/{requestId}
+```
+
+Cada entidade escrita carrega `workspaceId: 'demo-v1'` e `publicationRevision` atribuídos
+pelo servidor no plano de escrita, além dos campos do pacote e `schemaVersion` quando
+presentes. Esses campos continuam no contrato por compatibilidade e por defesa em
+profundidade, embora o caminho revisionado seja agora a fonte estrutural de isolamento. IDs
+determinísticos da fixture/rascunho são preservados (nunca regenerados).
+
+Contrato de leitura para a FASE 14c-5 (KMP):
+
+1. Ler `workspaces/demo-v1`.
+2. Obter `publicationRevision`.
+3. Ler exclusivamente as subcoleções em
+   `workspaces/demo-v1/revisions/{publicationRevision}/{collection}`.
+4. Nunca ler entidades Demo das coleções raiz, nem de revisões `PREPARING`/`FAILED`, nem de
+   uma revisão informada pelo cliente sem resolver antes o ponteiro ativo do workspace.
 
 ## Timestamps
 
@@ -245,25 +286,27 @@ escritas no Firestore, do controle de revisão, da idempotência e do reset remo
   fase futura se vale a pena separar "validação de schema" (sem Admin) de "comparação de
   revisão" (com Admin).
 - Não existe Firestore Emulator configurado neste repositório. A suíte automatizada usa o
-  fake em memória para a lógica de domínio e concorrência. A implementação Firestore real,
-  incluindo transações, reserva de revisão, batches, ativação e reset, foi validada por uma
-  execução real em projeto Firebase exclusivo de teste. A ausência do Emulator permanece
-  apenas como limitação para testes automatizados de integração.
-- Não há teste automatizado de rebalanceamento de chunking real (a fixture atual tem menos
-  de 400 operações); o código de chunking existe (`MAX_BATCH_WRITES = 400`) mas nunca foi
-  exercitado com mais de um batch.
+  fake em memória para a lógica de domínio e concorrência, incluindo falha em segundo batch.
+  A ausência do Emulator permanece como limitação para testes automatizados de integração
+  contra o SDK real.
+- Não há política de retenção/limpeza de revisões antigas nesta fase. Snapshots antigos são
+  preservados e a definição de TTL, retenção por quantidade ou limpeza manual fica para uma
+  fase futura.
 
 ## Produção permanece bloqueada
 
 - Nenhuma variável `ALLOW_PRODUCTION_FIRESTORE_WRITE` existe no código.
 - Todo plano de escrita passa por `assertDemoOnlyWritePlan`, que rejeita qualquer
-  `workspaceId` diferente de `demo-v1`, qualquer coleção fora da lista permitida, e qualquer
-  ID contendo `ici`.
+  `workspaceId` diferente de `demo-v1`, qualquer coleção fora da lista permitida, qualquer
+  caminho de entidade fora de `workspaces/demo-v1/revisions/{revision}/{collection}`, e
+  qualquer ID ou caminho contendo `ici`.
 - `productionWritesPlanned = 0` e `productionWritesPerformed = 0` por construção: não existe
   nenhum caminho de código nesta fase capaz de gerar um plano com um workspace de produção
   (a prova vem da própria estrutura do plano de escrita, não de uma listagem de dados reais).
 
 ## Próxima fase (14c-5)
 
-Consumir a revisão ativa do workspace `demo-v1` a partir do app real (KMP), lendo somente a
-revisão marcada como ativa em `workspaces/demo-v1`, nunca revisões `PREPARING`/`FAILED`.
+Consumir a revisão ativa do workspace `demo-v1` a partir do app real (KMP): ler
+`workspaces/demo-v1`, resolver `publicationRevision` e então ler somente
+`workspaces/demo-v1/revisions/{publicationRevision}/{collection}`. Não consultar coleções
+raiz para entidades Demo e nunca ler revisões `PREPARING`/`FAILED`.

@@ -42,6 +42,26 @@ describe('assertDemoOnlyWritePlan', () => {
     expectWorkspaceError(() => assertDemoOnlyWritePlan(plan));
   });
 
+  it('lanca quando o caminho da entidade nao esta sob a revisao candidata do demo-v1', () => {
+    const plan = readRealPlan();
+    plan.entityWrites[0] = {
+      ...plan.entityWrites[0],
+      collectionPath: 'teams',
+    };
+
+    expectWorkspaceError(() => assertDemoOnlyWritePlan(plan));
+  });
+
+  it('lanca quando o caminho contem identificador de producao', () => {
+    const plan = readRealPlan();
+    plan.entityWrites[0] = {
+      ...plan.entityWrites[0],
+      collectionPath: 'workspaces/demo-v1/revisions/2/teams-ici',
+    };
+
+    expectWorkspaceError(() => assertDemoOnlyWritePlan(plan));
+  });
+
   it('lanca quando um id contem ici em qualquer posicao', () => {
     const plan = readRealPlan();
     plan.entityWrites[0] = { ...plan.entityWrites[0], id: 'team-demO-ICI-contaminado' };
@@ -53,5 +73,13 @@ describe('assertDemoOnlyWritePlan', () => {
     const plan: PublicationPlan = readRealPlan();
 
     expect(() => assertDemoOnlyWritePlan(plan)).not.toThrow();
+  });
+
+  it('confirma que nenhuma escrita de entidade usa colecao viva de producao', () => {
+    const plan = readRealPlan();
+
+    expect(plan.entityWrites.every((write) => (
+      write.collectionPath?.startsWith(`workspaces/demo-v1/revisions/${plan.expectedNextRevision}/`)
+    ))).toBe(true);
   });
 });

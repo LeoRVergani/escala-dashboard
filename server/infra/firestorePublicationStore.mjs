@@ -11,6 +11,10 @@ function collectionDoc(db, collection, id) {
   return db.collection(collection).doc(id);
 }
 
+function writeCollectionDoc(db, write) {
+  return db.collection(write.collectionPath ?? write.collection).doc(write.id);
+}
+
 async function readDocumentData(ref) {
   const snap = await ref.get();
   return snap.exists ? snap.data() : null;
@@ -88,7 +92,8 @@ export function createFirestorePublicationStore(db) {
 
           const nextRevision = currentRevision + 1;
           const recordId = publicationRecordId(workspaceId, nextRevision);
-          tx.create(collectionDoc(db, 'publication_records', recordId), {
+          const existingIdempotencyRecord = idempotencySnap.empty ? null : idempotencySnap.docs[0].data();
+          const recordData = {
             id: recordId,
             workspaceId,
             publicationRevision: nextRevision,
@@ -96,7 +101,27 @@ export function createFirestorePublicationStore(db) {
             ...meta,
             status: 'PREPARING',
             publishedAt: null,
-          });
+            failureReason: null,
+          };
+
+          if (existingIdempotencyRecord?.status === 'FAILED') {
+            if (existingIdempotencyRecord.publicationRevision !== nextRevision) {
+              throw new PublicationError(
+                'PUBLICATION_REVISION_CONFLICT',
+                `Revisão ativa esperada ${expectedActiveRevision}, mas a chave de idempotência pertence a outra revisão.`,
+                {
+                  details: {
+                    expectedActiveRevision,
+                    actualActiveRevision: currentRevision,
+                  },
+                },
+              );
+            }
+
+            tx.set(collectionDoc(db, 'publication_records', recordId), recordData, { merge: true });
+          } else {
+            tx.create(collectionDoc(db, 'publication_records', recordId), recordData);
+          }
 
           return { outcome: 'RESERVED', nextRevision, recordId };
         });
@@ -135,18 +160,13 @@ export function createFirestorePublicationStore(db) {
         const chunk = plan.entityWrites.slice(start, start + MAX_BATCH_WRITES);
 
         for (const write of chunk) {
-          batch.set(collectionDoc(db, write.collection, write.id), write.data);
+          batch.set(writeCollectionDoc(db, write), write.data);
         }
 
         await batch.commit();
       }
 
-      // IDs determinísticos evitam leituras individuais caras só para distinguir create/update.
-      if (plan.expectedNextRevision === 1) {
-        return { countsCreated: plan.entityWrites.length, countsUpdated: 0 };
-      }
-
-      return { countsCreated: 0, countsUpdated: plan.entityWrites.length };
+      return { countsCreated: plan.entityWrites.length, countsUpdated: 0 };
     },
 
     async activateRevision(workspaceId, revision, workspaceData, counts) {

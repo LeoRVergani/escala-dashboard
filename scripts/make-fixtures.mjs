@@ -52,7 +52,7 @@ function makeN1Month(year, month) {
   fillHeader(1, 2, 3, `ESCALA ${monthName}/${year}`);
   const principalPattern = ['1', '2', '3', '4', '5', '6', 'F', 'M', 'M1', 'M2', 'M3', 'M4', 'X', 'AUS'];
 
-  fillPerson(5, ['1', '9001', 'ALICE EXEMPLO', new Date(Date.UTC(1899, 11, 31, 5, 0))], principalPattern);
+  fillPerson(5, ['1', '9001', 'ALICE EXEMPLO', '5:00'], principalPattern);
   fillPerson(6, ['2', '9002', 'BRUNO FICTICIO', '5:40'], principalPattern.slice(2).concat(principalPattern.slice(0, 2)));
   rows[7][42] = 'Ginástica Laboral';
   rows[7][43] = 'Terça, Quarta e Quinta';

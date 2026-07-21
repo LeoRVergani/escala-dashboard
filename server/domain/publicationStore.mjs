@@ -6,7 +6,7 @@
  * @property {(workspaceId: string, expectedActiveRevision: number, idempotencyKey: string, meta: object) => Promise<object>} reserveRevision
  * Reserva atomicamente a próxima revisão ou retorna uma publicação ACTIVE existente pela chave de idempotência.
  * @property {(plan: object) => Promise<{ countsCreated: number, countsUpdated: number }>} writeRevisionDocuments
- * Grava todas as entidades do plano.
+ * Grava todas as entidades do plano no snapshot isolado da revisão candidata.
  * @property {(workspaceId: string, revision: number, workspaceData: object, counts?: object) => Promise<object>} activateRevision
  * Atualiza `workspaces/{workspaceId}` e marca o registro da publicação como `ACTIVE`, gravando `counts` no
  * registro para que uma repetição por idempotencyKey possa devolver a mesma resposta sem recalcular nada.
@@ -14,6 +14,10 @@
  * Marca o registro da publicação como `FAILED`, guardando `failureReason` sem stack trace.
  * @property {(workspaceId: string, idempotencyKey: string) => Promise<object | null>} findByIdempotencyKey
  * Procura uma publicação existente pela chave de idempotência no workspace informado.
+ * @property {(workspaceId: string, revision: number, collection: string) => Promise<object[]>} readRevisionSnapshot
+ * Retorna os documentos de uma coleção dentro do snapshot de uma revisão.
+ * @property {(workspaceId: string, collection: string) => Promise<object[]>} readActiveSnapshot
+ * Resolve o ponteiro ativo do workspace e retorna a coleção do snapshot ativo.
  */
 
 import { PublicationError } from '../errors.mjs';
@@ -22,21 +26,40 @@ function publicationRecordId(workspaceId, revision) {
   return `${workspaceId}_${revision}`;
 }
 
+const DEFAULT_MAX_BATCH_WRITES = 400;
+
 function clone(value) {
   return value == null ? value : { ...value };
 }
 
-export function createInMemoryPublicationStore() {
+function snapshotCollectionPath(workspaceId, revision, collection) {
+  return `workspaces/${workspaceId}/revisions/${revision}/${collection}`;
+}
+
+export function createInMemoryPublicationStore(options = {}) {
+  const maxBatchWrites = options.maxBatchWrites ?? DEFAULT_MAX_BATCH_WRITES;
+  const failBatchIndexes = options.failBatchIndexes ?? new Set();
   const workspaces = new Map();
   const publicationRecords = new Map();
   const collections = new Map();
 
-  function collectionFor(name) {
-    if (!collections.has(name)) {
-      collections.set(name, new Map());
+  function collectionFor(path) {
+    if (!collections.has(path)) {
+      collections.set(path, new Map());
     }
 
-    return collections.get(name);
+    return collections.get(path);
+  }
+
+  function snapshotFor(workspaceId, revision, collection) {
+    const snapshot = collections.get(snapshotCollectionPath(workspaceId, revision, collection));
+    if (!snapshot) {
+      return [];
+    }
+
+    return Array.from(snapshot.values())
+      .map(clone)
+      .sort((left, right) => String(left.id).localeCompare(String(right.id)));
   }
 
   return {
@@ -90,7 +113,26 @@ export function createInMemoryPublicationStore() {
 
       const nextRevision = currentRevision + 1;
       const id = publicationRecordId(workspaceId, nextRevision);
-      if (publicationRecords.has(id)) {
+      const failedRecordWithSameKey = Array.from(publicationRecords.values()).find((record) => (
+        record.workspaceId === workspaceId
+        && record.idempotencyKey === idempotencyKey
+        && record.status === 'FAILED'
+      ));
+
+      if (failedRecordWithSameKey && failedRecordWithSameKey.publicationRevision !== nextRevision) {
+        throw new PublicationError(
+          'PUBLICATION_REVISION_CONFLICT',
+          `Revisão ativa esperada ${expectedActiveRevision}, mas a chave de idempotência pertence a outra revisão.`,
+          {
+            details: {
+              expectedActiveRevision,
+              actualActiveRevision: currentRevision,
+            },
+          },
+        );
+      }
+
+      if (publicationRecords.has(id) && !failedRecordWithSameKey) {
         throw new PublicationError(
           'PUBLICATION_REVISION_CONFLICT',
           `Revisão ativa esperada ${expectedActiveRevision}, mas a revisão real é ${currentRevision}.`,
@@ -111,27 +153,26 @@ export function createInMemoryPublicationStore() {
         ...clone(meta),
         status: 'PREPARING',
         publishedAt: null,
+        failureReason: null,
       };
       publicationRecords.set(id, record);
       return { outcome: 'RESERVED', nextRevision, recordId: id };
     },
 
     async writeRevisionDocuments(plan) {
-      let countsCreated = 0;
-      let countsUpdated = 0;
-
-      for (const write of plan.entityWrites) {
-        const collection = collectionFor(write.collection);
-        if (collection.has(write.id)) {
-          countsUpdated += 1;
-        } else {
-          countsCreated += 1;
+      for (let start = 0; start < plan.entityWrites.length; start += maxBatchWrites) {
+        const batchIndex = Math.floor(start / maxBatchWrites);
+        if (failBatchIndexes.has(batchIndex)) {
+          throw new Error('forced batch failure');
         }
 
-        collection.set(write.id, clone(write.data));
+        for (const write of plan.entityWrites.slice(start, start + maxBatchWrites)) {
+          const collection = collectionFor(write.collectionPath ?? write.collection);
+          collection.set(write.id, clone(write.data));
+        }
       }
 
-      return { countsCreated, countsUpdated };
+      return { countsCreated: plan.entityWrites.length, countsUpdated: 0 };
     },
 
     async activateRevision(workspaceId, revision, workspaceData, counts) {
@@ -184,6 +225,19 @@ export function createInMemoryPublicationStore() {
       }
 
       return null;
+    },
+
+    async readRevisionSnapshot(workspaceId, revision, collection) {
+      return snapshotFor(workspaceId, revision, collection);
+    },
+
+    async readActiveSnapshot(workspaceId, collection) {
+      const revision = workspaces.get(workspaceId)?.publicationRevision ?? 0;
+      if (!revision) {
+        return [];
+      }
+
+      return snapshotFor(workspaceId, revision, collection);
     },
   };
 }

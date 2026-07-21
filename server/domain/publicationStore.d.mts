@@ -26,10 +26,15 @@ export type InMemoryPublicationStore = {
     idempotencyKey: string,
     meta: Record<string, unknown>,
   ): Promise<ReserveRevisionResult>;
-  writeRevisionDocuments(plan: { entityWrites: Array<{ collection: string; id: string; data: Record<string, unknown> }> }): Promise<{ countsCreated: number; countsUpdated: number }>;
+  writeRevisionDocuments(plan: { entityWrites: Array<{ collection: string; collectionPath?: string; id: string; data: Record<string, unknown> }> }): Promise<{ countsCreated: number; countsUpdated: number }>;
   activateRevision(workspaceId: string, revision: number, workspaceData: Record<string, unknown>, counts?: { countsCreated: number; countsUpdated: number }): Promise<Record<string, unknown>>;
   markPublicationFailed(workspaceId: string, revision: number, reason: string): Promise<Record<string, unknown>>;
   findByIdempotencyKey(workspaceId: string, idempotencyKey: string): Promise<Record<string, unknown> | null>;
+  readRevisionSnapshot(workspaceId: string, revision: number, collection: string): Promise<Array<Record<string, unknown>>>;
+  readActiveSnapshot(workspaceId: string, collection: string): Promise<Array<Record<string, unknown>>>;
 };
 
-export function createInMemoryPublicationStore(): InMemoryPublicationStore;
+export function createInMemoryPublicationStore(options?: {
+  maxBatchWrites?: number;
+  failBatchIndexes?: Set<number>;
+}): InMemoryPublicationStore;

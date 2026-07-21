@@ -16,13 +16,22 @@ function nextRevisionFrom(currentActiveRevision) {
     : 1;
 }
 
+function revisionCollectionPath(revision, collection) {
+  return `workspaces/${WORKSPACE_ID}/revisions/${revision}/${collection}`;
+}
+
 export function buildPublicationPlan({ package: pkg, currentActiveRevision }) {
   const expectedNextRevision = nextRevisionFrom(currentActiveRevision);
   const entityWrites = ENTITY_COLLECTIONS.flatMap(([packageKey, collection]) => (
     pkg[packageKey].map((item) => ({
       collection,
+      collectionPath: revisionCollectionPath(expectedNextRevision, collection),
       id: item.id,
-      data: { ...item },
+      data: {
+        ...item,
+        workspaceId: WORKSPACE_ID,
+        publicationRevision: expectedNextRevision,
+      },
     }))
   ));
 

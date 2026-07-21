@@ -1,5 +1,6 @@
 export type PublicationWrite = {
   collection: string;
+  collectionPath?: string;
   id: string;
   data: Record<string, unknown>;
 };

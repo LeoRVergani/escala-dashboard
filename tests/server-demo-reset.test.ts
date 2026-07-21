@@ -437,10 +437,11 @@ describe('POST /api/demo/reset', () => {
       publicationRevision: 3,
       idempotencyKey: 'reset-3',
     });
-    expect(body.counts).toEqual({ countsCreated: 0, countsUpdated: expectedTotal });
+    expect(body.counts).toEqual({ countsCreated: expectedTotal, countsUpdated: 0 });
     expect(capturedPlans).toHaveLength(3);
     expect(capturedPlans[2].entityWrites).toContainEqual(expect.objectContaining({
       collection: 'teams',
+      collectionPath: 'workspaces/demo-v1/revisions/3/teams',
       id: 'team-revision-3',
       data: expect.objectContaining({ name: 'reset-revision-3' }),
     }));

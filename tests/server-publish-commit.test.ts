@@ -446,7 +446,7 @@ describe('POST /api/publish COMMIT', () => {
     expect(firstBody.publicationRevision).toBe(1);
     expect(secondResponse.status).toBe(200);
     expect(secondBody.publicationRevision).toBe(2);
-    expect(secondBody.counts).toEqual({ countsCreated: 0, countsUpdated: expectedTotal });
+    expect(secondBody.counts).toEqual({ countsCreated: expectedTotal, countsUpdated: 0 });
     await expect(store.getWorkspaceStatus('demo-v1')).resolves.toMatchObject({
       exists: true,
       publicationRevision: 2,
