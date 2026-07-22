@@ -1,18 +1,7 @@
 import { Router } from 'express';
 import { PublicationError } from '../errors.mjs';
+import { docIdForLogin, normalizeLogin, stringList } from '../infra/callerIdentity.mjs';
 import { createVerifyCallerMiddleware, requireSystemAdmin } from '../infra/verifyCaller.mjs';
-
-function normalizeLogin(value) {
-  return String(value ?? '').trim().toLocaleLowerCase('pt-BR');
-}
-
-function docIdForLogin(login) {
-  return normalizeLogin(login).replace(/\//g, '_');
-}
-
-function stringList(value) {
-  return Array.isArray(value) ? value.filter((item) => typeof item === 'string') : [];
-}
 
 function roleFromUserLink(data) {
   return data?.role === 'SCHEDULE_ADMIN' ? 'SCHEDULE_ADMIN' : 'USER';

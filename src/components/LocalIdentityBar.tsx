@@ -5,9 +5,15 @@ import { LOCAL_TEAM_TYPE_LABELS, type LocalIdentity, type LocalTeam, type LocalT
 interface LocalIdentityBarProps {
   identity: LocalIdentity;
   activeTeam: LocalTeam | null;
+  devSessionActive?: boolean;
+  devSessionLogin?: string;
+  devBootstrapEnabled?: boolean;
+  devBootstrapError?: string | null;
   onSetChefeName: (name: string) => void;
   onAddTeam: (name: string, type: LocalTeamType) => void;
   onSetActiveTeam: (teamId: string | null) => void;
+  onDevLogin?: (login: string) => Promise<void>;
+  onDevLogout?: () => Promise<void>;
 }
 
 /**
@@ -17,12 +23,25 @@ interface LocalIdentityBarProps {
  * na publicação estruturada real). Quando o login Microsoft existir, este bloco deixa de
  * ser necessário e pode ser removido sem afetar nenhum outro fluxo - não há acoplamento.
  */
-export function LocalIdentityBar({ identity, activeTeam, onSetChefeName, onAddTeam, onSetActiveTeam }: LocalIdentityBarProps) {
+export function LocalIdentityBar({
+  identity,
+  activeTeam,
+  devSessionActive = false,
+  devSessionLogin,
+  devBootstrapEnabled = false,
+  devBootstrapError = null,
+  onSetChefeName,
+  onAddTeam,
+  onSetActiveTeam,
+  onDevLogin,
+  onDevLogout,
+}: LocalIdentityBarProps) {
   const [editingName, setEditingName] = useState(identity.chefeName === '');
   const [nameDraft, setNameDraft] = useState(identity.chefeName);
   const [showNewTeam, setShowNewTeam] = useState(identity.teams.length === 0);
   const [teamNameDraft, setTeamNameDraft] = useState('');
   const [teamTypeDraft, setTeamTypeDraft] = useState<LocalTeamType>('SOC_NOC');
+  const [devLoginDraft, setDevLoginDraft] = useState('');
 
   return (
     <div className="local-identity-bar" aria-label="Sessão local">
@@ -104,6 +123,33 @@ export function LocalIdentityBar({ identity, activeTeam, onSetChefeName, onAddTe
             <button type="submit" className="btn">Criar time</button>
           </form>
         )}
+
+        {devSessionActive && <span className="dev-session-badge">MODO DE TESTE</span>}
+        {devSessionActive && devSessionLogin && <span className="dev-session-login">{devSessionLogin}</span>}
+        {devSessionActive && onDevLogout && (
+          <button type="button" className="link-btn dev-session-logout" onClick={() => { void onDevLogout(); }}>
+            sair do teste
+          </button>
+        )}
+        {!devSessionActive && devBootstrapEnabled && onDevLogin && (
+          <form
+            className="dev-session-form"
+            aria-label="Entrar em modo de teste"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!devLoginDraft.trim()) return;
+              void onDevLogin(devLoginDraft);
+            }}
+          >
+            <input
+              value={devLoginDraft}
+              placeholder="login administrativo"
+              onChange={(event) => setDevLoginDraft(event.target.value)}
+            />
+            <button type="submit" className="btn">Entrar em modo de teste</button>
+          </form>
+        )}
+        {devBootstrapError && <span className="dev-session-error" role="alert">{devBootstrapError}</span>}
       </div>
       <span className="local-identity-note">sessão local deste navegador · sem login Microsoft ainda</span>
     </div>

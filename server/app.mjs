@@ -6,6 +6,7 @@ import { getFirebaseAdmin as defaultGetFirebaseAdmin } from './infra/firebaseAdm
 import { createAdminRouter } from './routes/admin.mjs';
 import { createDemoResetRouter } from './routes/demoReset.mjs';
 import { createDemoStatusRouter } from './routes/demoStatus.mjs';
+import { createDevLoginRouter } from './routes/devLogin.mjs';
 import { createHealthRouter } from './routes/health.mjs';
 import { createOfficialPublishRouter } from './routes/officialPublish.mjs';
 import { createOfficialStatusRouter } from './routes/officialStatus.mjs';
@@ -64,6 +65,7 @@ export function createApp(config, overrides = {}) {
 
       callback(null, false);
     },
+    credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
   }));
 
@@ -76,6 +78,9 @@ export function createApp(config, overrides = {}) {
   app.use('/api/official/status', createOfficialStatusRouter(routeDependencies));
   app.use('/api/publish/official', createOfficialPublishRouter(routeDependencies));
   app.use('/api/admin', createAdminRouter(routeDependencies));
+  if (config.devLocalAuthEnabled === true && config.nodeEnv !== 'production') {
+    app.use('/api/dev', createDevLoginRouter(routeDependencies));
+  }
 
   app.use((req, res) => {
     res.status(404).json({

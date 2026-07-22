@@ -6,6 +6,7 @@ export interface VerifiedCaller {
   role: 'USER' | 'SCHEDULE_ADMIN';
   teamIds: string[];
   isSystemAdmin: boolean;
+  isDevSession?: boolean;
 }
 
 export function createVerifyCallerMiddleware(deps: {

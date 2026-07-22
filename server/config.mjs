@@ -21,6 +21,7 @@ function parseAllowedOrigins(value) {
 
 export function loadConfig(env = process.env) {
   return {
+    nodeEnv: env.NODE_ENV ?? 'development',
     // Default local bind avoids exposing this publishing API on the network by accident.
     host: env.DASHBOARD_API_HOST ?? DEFAULT_HOST,
     port: parseNumber(env.DASHBOARD_API_PORT, DEFAULT_PORT),
@@ -29,5 +30,8 @@ export function loadConfig(env = process.env) {
     firebaseProjectId: env.FIREBASE_PROJECT_ID,
     allowDemoFirestoreWrite: env.ALLOW_DEMO_FIRESTORE_WRITE === 'true',
     allowOfficialFirestoreWrite: env.ALLOW_OFFICIAL_FIRESTORE_WRITE === 'true',
+    devLocalAuthEnabled: env.DASHBOARD_DEV_LOCAL_AUTH === 'true',
+    devLocalAdminLogins: (env.DEV_LOCAL_ADMIN_LOGINS ?? '').split(',').map((v) => v.trim().toLocaleLowerCase('pt-BR')).filter(Boolean),
+    devSessionSecret: env.DEV_SESSION_SECRET,
   };
 }

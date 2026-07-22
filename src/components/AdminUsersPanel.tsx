@@ -19,6 +19,7 @@ interface AdminUserRecord {
 interface AdminUsersPanelProps {
   user: AuthenticatedDashboardUser | null;
   teams: Team[];
+  devSessionActive?: boolean;
 }
 
 interface AdminFormState {
@@ -49,6 +50,7 @@ async function authHeaders(): Promise<Headers> {
 async function requestAdmin<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(endpoint(path), {
     ...init,
+    credentials: 'include',
     headers: await authHeaders(),
   });
   if (!response.ok) {
@@ -70,7 +72,7 @@ function roleLabel(role: AdminUserRecord['role'] | AdminRole): string {
   return 'USER';
 }
 
-export function AdminUsersPanel({ user, teams }: AdminUsersPanelProps) {
+export function AdminUsersPanel({ user, teams, devSessionActive = false }: AdminUsersPanelProps) {
   const [records, setRecords] = useState<AdminUserRecord[]>([]);
   const [form, setForm] = useState<AdminFormState>(EMPTY_FORM);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -79,9 +81,10 @@ export function AdminUsersPanel({ user, teams }: AdminUsersPanelProps) {
   const [error, setError] = useState<string | null>(null);
 
   const teamById = useMemo(() => new Map(teams.map((team) => [team.id, team.name])), [teams]);
+  const canAdminister = user?.isSystemAdmin === true || devSessionActive;
 
   const loadUsers = async () => {
-    if (!user?.isSystemAdmin) return;
+    if (!canAdminister) return;
     setLoading(true);
     setError(null);
     try {
@@ -96,9 +99,9 @@ export function AdminUsersPanel({ user, teams }: AdminUsersPanelProps) {
 
   useEffect(() => {
     void loadUsers();
-  }, [user?.isSystemAdmin]);
+  }, [canAdminister]);
 
-  if (!user?.isSystemAdmin) {
+  if (!canAdminister) {
     return (
       <section className="admin-users-panel" aria-label="Administração">
         <div className="official-wizard-head">

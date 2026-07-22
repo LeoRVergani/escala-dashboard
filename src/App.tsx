@@ -58,6 +58,7 @@ import { useFirebaseDashboard } from './hooks/useFirebaseDashboard';
 import { useDemoWorkspace } from './hooks/useDemoWorkspace';
 import { useDemoRemotePublication, type DemoValidationResult } from './hooks/useDemoRemotePublication';
 import { useOfficialRemotePublication, type OfficialValidationResult } from './hooks/useOfficialRemotePublication';
+import { useDevLocalSession } from './hooks/useDevLocalSession';
 import type { DemoWorkspaceDiff } from './lib/demoWorkspace/diff';
 import type { DemoPublicationPackage } from './lib/demoWorkspace/dto';
 import { eligibleOfficialMembers, toOfficialPackage, type OfficialCorporateLink } from './lib/officialWorkspace/retarget';
@@ -193,6 +194,7 @@ export default function App() {
   const [uiCompact, setUiCompact] = useState(() => loadStoredUiCompact());
   const [themePreference, setThemePreference] = useState(() => loadStoredTheme());
   const localIdentity = useLocalIdentity();
+  const devLocalSession = useDevLocalSession();
   const [officialPublishResult, setOfficialPublishResult] = useState<{ revision: number } | null>(null);
   const [n1Layer, setN1Layer] = useState<ServiceDeskN1Layer>('principal');
   const [pending, setPending] = useState<PendingImport | null>(null);
@@ -1185,14 +1187,20 @@ export default function App() {
         themePreference={themePreference}
         onCycleTheme={cycleTheme}
         sectionState={sectionState}
-        showAdminSection={firebaseDashboard.user?.isSystemAdmin === true}
+        showAdminSection={firebaseDashboard.user?.isSystemAdmin === true || devLocalSession.active}
         identityBar={(
           <LocalIdentityBar
             identity={localIdentity.identity}
             activeTeam={localIdentity.activeTeam}
+            devSessionActive={devLocalSession.active}
+            devSessionLogin={devLocalSession.login}
+            devBootstrapEnabled={devLocalSession.enabled}
+            devBootstrapError={devLocalSession.error}
             onSetChefeName={localIdentity.setChefeName}
             onAddTeam={localIdentity.addTeam}
             onSetActiveTeam={localIdentity.setActiveTeam}
+            onDevLogin={devLocalSession.enter}
+            onDevLogout={devLocalSession.leave}
           />
         )}
         footer={schedule && schedule.origin !== 'demo-workspace-package' ? (
@@ -1304,6 +1312,8 @@ export default function App() {
               selectedTeamId={firebaseDashboard.selectedTeamId}
               loading={firebaseDashboard.loading || firebaseBusy}
               error={firebaseDashboard.error}
+              devSessionActive={devLocalSession.active}
+              devSessionLogin={devLocalSession.login}
               hasSchedule={Boolean(schedule)}
               canPublish={Boolean(schedule && firebaseDashboard.user && firebaseDashboard.selectedTeam && !schedule.isDemo && schedule.technicians.length && (schedule.viewType === 'oncall' ? schedule.onCallRecords?.length : Object.values(schedule.cells).some((row) => Object.values(row).some(Boolean))))}
               onTeamChange={firebaseDashboard.setSelectedTeamId}
@@ -1739,7 +1749,7 @@ export default function App() {
         )}
 
         {activeSection === 'admin' && (
-          <AdminUsersPanel user={firebaseDashboard.user} teams={firebaseDashboard.teams} />
+          <AdminUsersPanel user={firebaseDashboard.user} teams={firebaseDashboard.teams} devSessionActive={devLocalSession.active} />
         )}
 
         {activeSection === 'settings' && (

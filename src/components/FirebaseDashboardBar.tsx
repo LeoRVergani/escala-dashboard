@@ -3,6 +3,7 @@ import type { AuthenticatedDashboardUser, Team } from '../types';
 interface Props {
   configured: boolean; user: AuthenticatedDashboardUser | null; teams: Team[]; selectedTeamId: string;
   loading: boolean; error: string | null; hasSchedule: boolean; canPublish: boolean;
+  devSessionActive?: boolean; devSessionLogin?: string;
   onTeamChange: (id: string) => void; onLogin: () => void; onLogout: () => void; onImport: () => void;
   onSaveDraft: () => void; onPublish: () => void; onSwaps: () => void; onManageTeams: () => void;
 }
@@ -10,6 +11,8 @@ interface Props {
 export function FirebaseDashboardBar(props: Props) {
   return <section className="firebase-bar" aria-label="Integração Escala ICI">
     <span className="firebase-user">{props.loading ? 'Verificando acesso…' : props.user ? `Conectado: ${props.user.displayName ?? props.user.login}` : props.configured ? 'Não conectado' : 'Firebase não configurado'}</span>
+    {props.devSessionActive && <span className="dev-session-badge">MODO DE TESTE</span>}
+    {props.devSessionActive && props.devSessionLogin && <span className="dev-session-login">{props.devSessionLogin}</span>}
     <label>Time
       <select aria-label="Time selecionado" value={props.selectedTeamId} disabled={!props.user || !props.teams.length} onChange={(event) => props.onTeamChange(event.target.value)}>
         {!props.teams.length && <option value="">Nenhum time disponível</option>}

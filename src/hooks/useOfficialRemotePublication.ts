@@ -84,7 +84,7 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<ApiResu
     if (idToken) {
       headers.set('Authorization', `Bearer ${idToken}`);
     }
-    const response = await fetch(endpoint(path), { ...init, headers });
+    const response = await fetch(endpoint(path), { ...init, credentials: 'include', headers });
     if (!response.ok) {
       return { ok: false, error: await readApiError(response) };
     }

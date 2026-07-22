@@ -1,18 +1,6 @@
 import { PublicationError } from '../errors.mjs';
-
-function normalizeLogin(value) {
-  return String(value ?? '').trim().toLocaleLowerCase('pt-BR');
-}
-
-function activeDocumentData(snapshot) {
-  if (!snapshot?.exists) return null;
-  const data = snapshot.data() ?? {};
-  return data.active === true ? data : null;
-}
-
-function stringList(value) {
-  return Array.isArray(value) ? value.filter((item) => typeof item === 'string') : [];
-}
+import { resolveCallerFromDb } from './callerIdentity.mjs';
+import { devSessionFromRequest, isDevLocalAuthRuntimeEnabled } from './devSession.mjs';
 
 function authorizationToken(req) {
   const raw = req.get?.('authorization') ?? req.headers?.authorization;
@@ -24,6 +12,24 @@ function authorizationToken(req) {
 export function createVerifyCallerMiddleware({ getFirebaseAdmin, config }) {
   return async function verifyCaller(req, res, next) {
     try {
+      if (isDevLocalAuthRuntimeEnabled(config)) {
+        const devSession = devSessionFromRequest(req, config);
+        if (devSession) {
+          const admin = getFirebaseAdmin(config);
+          if (!admin?.configured || !admin.db) {
+            throw new PublicationError('FIREBASE_ADMIN_NOT_CONFIGURED', 'Firebase Admin não está configurado.');
+          }
+
+          req.caller = await resolveCallerFromDb(admin.db, {
+            uid: devSession.uid,
+            fallbackLogin: devSession.login,
+            isDevSession: true,
+          });
+          next();
+          return;
+        }
+      }
+
       const idToken = authorizationToken(req);
       if (!idToken) {
         throw new PublicationError('UNAUTHENTICATED', 'Token de autenticação ausente ou inválido.');
@@ -46,25 +52,10 @@ export function createVerifyCallerMiddleware({ getFirebaseAdmin, config }) {
         throw new PublicationError('UNAUTHENTICATED', 'Token de autenticação ausente ou inválido.');
       }
 
-      const [linkSnapshot, adminSnapshot] = await Promise.all([
-        admin.db.collection('user_links').doc(uid).get(),
-        admin.db.collection('system_admins').doc(uid).get(),
-      ]);
-      const linkData = activeDocumentData(linkSnapshot);
-      const systemAdminData = activeDocumentData(adminSnapshot);
-
-      if (!linkData && !systemAdminData) {
-        throw new PublicationError('UNLINKED_ACCOUNT', 'Conta autenticada mas sem vínculo ativo no dashboard.');
-      }
-
-      const login = normalizeLogin(linkData?.login ?? systemAdminData?.login ?? decoded.email ?? uid);
-      req.caller = {
+      req.caller = await resolveCallerFromDb(admin.db, {
         uid,
-        login,
-        role: linkData?.role === 'SCHEDULE_ADMIN' ? 'SCHEDULE_ADMIN' : 'USER',
-        teamIds: stringList(linkData?.teamIds),
-        isSystemAdmin: Boolean(systemAdminData),
-      };
+        fallbackLogin: decoded.email,
+      });
       next();
     } catch (err) {
       next(err);
