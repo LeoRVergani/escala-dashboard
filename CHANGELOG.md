@@ -1,5 +1,41 @@
 # Histórico de versões
 
+## 1.15.1 — 22/07/2026
+
+- **FASE 14G — primeira publicação oficial controlada (workspace `ici-dev`, time SOC,
+  período 26/06/2026–25/07/2026)**: duas publicações reais autorizadas, executadas via
+  `POST /api/publish/official` (nunca escrita direta no Firestore), a partir de um XLS
+  real de escala (9 técnicos, 232 registros — 210 turnos + 22 anotações de férias/DU).
+  - Revisão 1: importação fiel do XLS (dry-run `VALIDATED`, checksum `MATCH`), publicada
+    e validada no Android (emulador com sessão MSAL real já autenticada) — expôs, pela
+    primeira vez testando com login corporativo real, que `corporateLogin`/
+    `emailNormalized` eram gravados como o login nu do XLS (ex.: `"lvergani"`), sem
+    domínio, impedindo `findActiveMemberIds` (KMP) de resolver a identidade MSAL real
+    (`lvergani@ici.tec.br`) contra o cadastro publicado ("Cadastro corporativo não
+    localizado na publicação oficial.");
+  - corrige `buildOfficialPackageFromSchedule` (`officialWorkspace/buildFromSchedule.ts`)
+    para derivar `corporateLogin`/`emailNormalized` como `login@ici.tec.br` quando o XLS
+    só traz o login nu (preserva o valor se já vier com `@`), alinhando com o contrato já
+    coberto no KMP (`RemoteFirstDemoMemberDirectoryRepositoryTest`); 2 testes novos
+    (399 no total, nenhum removido);
+  - Revisão 2: reimportação do mesmo XLS validado (agora com `corporateLogin` correto
+    para os 9 membros) mais uma correção pontual — turno de manhã de `lvergani` em
+    25/07/2026 alterado para folga (`assignmentType: 'OFF'`), motivo documentado em
+    `scheduleChangeRequests` ("Correção após teste controlado de sincronização"), sem
+    tocar nenhum outro registro. Total de atribuições mantido em 232 (o registro do dia
+    passa a existir como folga, não é removido); contagem de turnos de trabalho migra de
+    210 para 209. Dry-run `VALIDATED`/`MATCH` antes do commit;
+  - revisão 1 permanece imutável no Firestore (conferido após a revisão 2 publicar);
+    ponteiro ativo avançou 0 → 1 → 2 nas duas publicações, cada uma com sua própria
+    `idempotencyKey`;
+  - validado no Android (relançamento do app, sem reinstalar/limpar dados): "Minha
+    Escala" passou a resolver o cadastro real e exibir a semana corrigida (19–24/07
+    "Manhã", 25/07 "Folga"), confirmando sincronização por ponteiro de revisão;
+  - validação no Web/PWA não pôde ser concluída de forma autônoma: o navegador exigiu
+    login MSAL real (redirecionamento a `login.microsoftonline.com`), que depende de
+    credenciais/MFA do usuário e não deve ser simulado — recomenda-se conferência manual
+    em `http://localhost:8080/` com a sessão já autenticada do usuário.
+
 ## 1.15.0 — 22/07/2026
 
 - resolve o bloqueio estrutural da Publicação Oficial: até aqui a única origem
