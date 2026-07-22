@@ -179,6 +179,14 @@ function countScheduleAssignments(state: ScheduleState): number {
   return Object.values(state.cells).reduce((sum, row) => sum + Object.keys(row).length, 0);
 }
 
+function hasUnpublishedOfficialScheduleEdits(
+  current: DemoPublicationPackage | null,
+  baseline: DemoPublicationPackage | null,
+): boolean {
+  if (!current || !baseline) return false;
+  return JSON.stringify(current.scheduleAssignments) !== JSON.stringify(baseline.scheduleAssignments);
+}
+
 export default function App() {
   const history = useHistory<ScheduleState | null>(null);
   const firebaseDashboard = useFirebaseDashboard();
@@ -224,6 +232,7 @@ export default function App() {
   const [officialCorporateLink, setOfficialCorporateLink] = useState<Partial<OfficialCorporateLink>>({});
   const [officialSource, setOfficialSource] = useState<OfficialSource>('none');
   const [officialBuiltPackage, setOfficialBuiltPackage] = useState<DemoPublicationPackage | null>(null);
+  const [officialScheduleLoadedBaselinePackage, setOfficialScheduleLoadedBaselinePackage] = useState<DemoPublicationPackage | null>(null);
   const [officialScheduleTeamId, setOfficialScheduleTeamId] = useState('');
   const [officialScheduleRevisionInput, setOfficialScheduleRevisionInput] = useState('');
   const [officialScheduleLoadResult, setOfficialScheduleLoadResult] = useState<OfficialScheduleLoadResult | null>(null);
@@ -436,6 +445,14 @@ export default function App() {
       return;
     }
 
+    const currentOfficialPackage = schedule?.origin === 'official-firebase' && schedule.officialTeamId && officialBuiltPackage
+      ? applyScheduleStateToPackage(officialBuiltPackage, schedule, schedule.officialTeamId)
+      : officialBuiltPackage;
+    if (officialSource === 'official' && hasUnpublishedOfficialScheduleEdits(currentOfficialPackage, officialScheduleLoadedBaselinePackage)) {
+      const confirmed = window.confirm('Você tem alterações não publicadas nesta escala oficial. Recarregar vai descartá-las. Continuar?');
+      if (!confirmed) return;
+    }
+
     setOfficialScheduleLoading(true);
     try {
       const result = await loadOfficialSchedule(teamId, revision);
@@ -443,6 +460,7 @@ export default function App() {
       if (result.status !== 'OK') return;
 
       setOfficialBuiltPackage(result.package);
+      setOfficialScheduleLoadedBaselinePackage(result.package);
       setOfficialSource('official');
       setOfficialCorporateLink((current) => ({ ...current, teamId: result.teamId }));
       setOfficialScheduleTeamId(result.teamId);
@@ -456,7 +474,16 @@ export default function App() {
     } finally {
       setOfficialScheduleLoading(false);
     }
-  }, [officialScheduleTeamId, officialCorporateLink.teamId, history, notify]);
+  }, [
+    officialScheduleTeamId,
+    officialCorporateLink.teamId,
+    officialSource,
+    officialBuiltPackage,
+    officialScheduleLoadedBaselinePackage,
+    schedule,
+    history,
+    notify,
+  ]);
 
   const openOfficialPublishDialog = useCallback(async () => {
     if (officialRemotePublication.busy !== 'IDLE') return;
@@ -529,6 +556,7 @@ export default function App() {
       officialMembersFromSchedule(state),
     );
     setOfficialBuiltPackage(pkg);
+    setOfficialScheduleLoadedBaselinePackage(null);
     setOfficialSource(source);
     setOfficialCorporateLink({});
     setOfficialScheduleRevisionBase(null);
@@ -600,6 +628,7 @@ export default function App() {
   const selectOfficialDemoPackage = useCallback(() => {
     setOfficialSource('demo');
     setOfficialBuiltPackage(null);
+    setOfficialScheduleLoadedBaselinePackage(null);
     setOfficialCorporateLink({});
     setOfficialScheduleRevisionBase(null);
     setOfficialScheduleLoadResult(null);
