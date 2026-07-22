@@ -3,7 +3,11 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import fixturePackage from '../fixtures/demo/demo-v1-publication-package.json';
 import type { DemoPublicationPackage } from '../src/lib/demoWorkspace/dto';
-import { buildOfficialPackageFromSchedule, type OfficialImportMemberInput } from '../src/lib/officialWorkspace/buildFromSchedule';
+import {
+  buildOfficialPackageFromSchedule,
+  type OfficialImportMemberInput,
+  type OfficialImportOnCallGroupInput,
+} from '../src/lib/officialWorkspace/buildFromSchedule';
 import {
   eligibleOfficialMembers,
   eligibleOfficialTeams,
@@ -46,6 +50,23 @@ function packageFromSchedule(schedule: ScheduleState): DemoPublicationPackage {
   );
 }
 
+function onCallSchedule(sheetName = 'COSI Julho'): ScheduleState {
+  return {
+    monthKey: { year: 2026, month: 7 },
+    dates: ['2026-07-01'],
+    viewType: 'oncall',
+    technicians: [{ id: 'ana-plantao', name: 'Ana Plantão' }],
+    cells: {},
+    onCallRecords: [{ id: 'plantao-1', technician: 'Ana Plantão', start: '2026-07-01T19:00', end: '2026-07-02T07:00', durationMinutes: 720 }],
+    sourceSheet: sheetName,
+    sourceLayout: 'oncall',
+  };
+}
+
+const nocOnCallTeam = { id: 'cosi-plantao-noc', name: 'NOC Plantão', hierarchy: 'PLANTAO_COSI' } as const;
+const nocGroupA: OfficialImportOnCallGroupInput = { id: 'cosi-plantao-noc-a', teamId: 'cosi-plantao-noc', name: 'Grupo A' };
+const nocGroupB: OfficialImportOnCallGroupInput = { id: 'cosi-plantao-noc-b', teamId: 'cosi-plantao-noc', name: 'Grupo B' };
+
 function assignment(pkg: DemoPublicationPackage, memberId: string, date: string) {
   const found = pkg.scheduleAssignments.find((item) => item.memberId === memberId && item.date === date);
   if (!found) throw new Error(`Assignment não encontrado: ${memberId} ${date}`);
@@ -74,6 +95,21 @@ describe('buildOfficialPackageFromSchedule', () => {
     expect(eligibleOfficialMembers(pkg).length).toBeGreaterThan(0);
     expect(eligibleOfficialTeams(pkg).length).toBeGreaterThan(0);
     expect(pkg.scheduleAssignments.length).toBeGreaterThan(0);
+  });
+
+  it('prepara escala 6x1 comum sem exigir grupo de plantão', () => {
+    const schedule = importedSocSchedule();
+    const pkg = buildOfficialPackageFromSchedule(
+      schedule,
+      { name: 'SOC/NOC', hierarchy: 'SOC_NOC' },
+      membersFromSchedule(schedule),
+    );
+
+    expect(schedule.viewType).not.toBe('oncall');
+    expect(schedule.onCallRecords ?? []).toHaveLength(0);
+    expect(pkg.schedulePeriods[0].groupId).toBeNull();
+    expect(pkg.scheduleAssignments.length).toBeGreaterThan(0);
+    expect(pkg.scheduleAssignments.every((item) => (item.groupId ?? null) === null)).toBe(true);
   });
 
   it('deriva corporateLogin/emailNormalized como e-mail corporativo real a partir do login nu do XLS', () => {
@@ -255,5 +291,45 @@ describe('buildOfficialPackageFromSchedule', () => {
       startTime: null,
       endTime: null,
     });
+  });
+
+  it('bloqueia pacote de plantão sem grupo escolhido com erro claro', () => {
+    expect(() => buildOfficialPackageFromSchedule(
+      onCallSchedule(),
+      nocOnCallTeam,
+      [{ displayName: 'Ana Plantão', login: 'ana.plantao' }],
+    )).toThrow('Selecione a equipe e o grupo de plantão antes de preparar o pacote oficial.');
+  });
+
+  it('gera pacote de plantão com groupId correto em período e atribuições', () => {
+    const pkg = buildOfficialPackageFromSchedule(
+      onCallSchedule(),
+      nocOnCallTeam,
+      [{ displayName: 'Ana Plantão', login: 'ana.plantao' }],
+      nocGroupA,
+    );
+
+    expect(pkg.teams[0]).toMatchObject({ id: 'cosi-plantao-noc', name: 'NOC Plantão' });
+    expect(pkg.schedulePeriods[0]).toMatchObject({ teamId: 'cosi-plantao-noc', groupId: 'cosi-plantao-noc-a' });
+    expect(pkg.scheduleAssignments).toHaveLength(1);
+    expect(pkg.scheduleAssignments[0]).toMatchObject({
+      teamId: 'cosi-plantao-noc',
+      groupId: 'cosi-plantao-noc-a',
+      assignmentType: 'WORK_SHIFT',
+      shiftName: 'Plantão',
+      startTime: '19:00',
+      endTime: '07:00',
+    });
+  });
+
+  it('nunca infere grupo pelo nome da planilha: a mesma planilha pode gerar grupos diferentes', () => {
+    const schedule = onCallSchedule('COSI Julho');
+    const members = [{ displayName: 'Ana Plantão', login: 'ana.plantao' }];
+    const first = buildOfficialPackageFromSchedule(schedule, nocOnCallTeam, members, nocGroupA);
+    const second = buildOfficialPackageFromSchedule(schedule, nocOnCallTeam, members, nocGroupB);
+
+    expect(first.scheduleAssignments.map((item) => item.groupId)).toEqual(['cosi-plantao-noc-a']);
+    expect(second.scheduleAssignments.map((item) => item.groupId)).toEqual(['cosi-plantao-noc-b']);
+    expect(first.scheduleAssignments[0].id).toBe(second.scheduleAssignments[0].id);
   });
 });

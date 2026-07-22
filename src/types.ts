@@ -85,6 +85,13 @@ export interface OnCallRecord {
   durationMinutes: number;
 }
 
+export interface OnCallGroup {
+  id: string;
+  teamId: string;
+  name: string;
+  active: boolean;
+}
+
 /** Estado editável da grade ou do relatório de plantões. */
 export interface ScheduleState {
   monthKey: MonthKey;

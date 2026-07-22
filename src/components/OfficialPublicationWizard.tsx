@@ -2,6 +2,8 @@ import { useState } from 'react';
 import type { DemoPublicationPackage } from '../lib/demoWorkspace/dto';
 import type { OfficialScheduleLoadResult } from '../lib/officialWorkspace/officialScheduleGateway';
 import type { OfficialCorporateLink } from '../lib/officialWorkspace/retarget';
+import type { OnCallGroup, Team } from '../types';
+import { activeGroupsForTeam, resolveOnCallGroupForImport } from '../lib/onCallGroups';
 import {
   eligibleOfficialMembers,
   eligibleOfficialTeams,
@@ -46,6 +48,12 @@ interface OfficialPublicationWizardProps {
   onLoadOfficialActiveSchedule: () => void;
   onLoadOfficialRevisionSchedule: () => void;
   onReloadOfficialSchedule: () => void;
+  onCallTeams: Team[];
+  onCallGroups: OnCallGroup[];
+  selectedOnCallTeamId: string;
+  onSelectedOnCallTeamIdChange: (teamId: string) => void;
+  selectedOnCallGroupId: string;
+  onSelectedOnCallGroupIdChange: (groupId: string) => void;
 }
 
 interface StepDef {
@@ -111,6 +119,12 @@ export function OfficialPublicationWizard({
   onLoadOfficialActiveSchedule,
   onLoadOfficialRevisionSchedule,
   onReloadOfficialSchedule,
+  onCallTeams,
+  onCallGroups,
+  selectedOnCallTeamId,
+  onSelectedOnCallTeamIdChange,
+  selectedOnCallGroupId,
+  onSelectedOnCallGroupIdChange,
 }: OfficialPublicationWizardProps) {
   const [step, setStep] = useState(1);
 
@@ -125,6 +139,9 @@ export function OfficialPublicationWizard({
   const dryRunOk = validation?.status === 'VALIDATED';
   const writeEnabled = firebaseAdminStatus?.allowOfficialFirestoreWrite === true;
   const canPublish = backendOnline && firebaseAdminStatus?.configured === true && writeEnabled && linkOk && dryRunOk && busy === 'IDLE';
+  const activeOnCallGroups = activeGroupsForTeam(onCallGroups, selectedOnCallTeamId);
+  const onCallGroupSelection = resolveOnCallGroupForImport(onCallGroups, selectedOnCallTeamId, selectedOnCallGroupId);
+  const onCallImportReady = onCallGroupSelection.ok;
 
   const steps: StepDef[] = [
     { step: 1, label: 'Origem da escala', valid: Boolean(officialPackage && hasEligibleTeam) },
@@ -259,6 +276,40 @@ export function OfficialPublicationWizard({
                 <b>Pacote Demo <span className="official-source-badge">bloqueado</span></b>
                 <span>Retitula workspaceId para ici-dev, mas os IDs continuam contaminados por design.</span>
               </button>
+            </div>
+            <div className="official-publication-validation" role="group" aria-label="Equipe e grupo de plantão">
+              <label>
+                Equipe de plantão
+                <select
+                  value={selectedOnCallTeamId}
+                  onChange={(event) => onSelectedOnCallTeamIdChange(event.target.value)}
+                >
+                  <option value="">Selecione</option>
+                  {onCallTeams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+                </select>
+              </label>
+              {activeOnCallGroups.length > 1 && (
+                <label>
+                  Grupo de plantão
+                  <select
+                    value={selectedOnCallGroupId}
+                    onChange={(event) => onSelectedOnCallGroupIdChange(event.target.value)}
+                  >
+                    <option value="">Selecione</option>
+                    {activeOnCallGroups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+                  </select>
+                </label>
+              )}
+              {activeOnCallGroups.length === 1 && (
+                <p className="official-wizard-ok" role="status">
+                  Grupo único: {activeOnCallGroups[0].name}.
+                </p>
+              )}
+              {!onCallImportReady && (
+                <p className="official-publication-error" role="alert">
+                  {onCallGroupSelection.message}
+                </p>
+              )}
             </div>
             <div className="official-publication-validation" role="group" aria-label="Carregar escala oficial publicada">
               <label>

@@ -105,6 +105,7 @@ export interface DemoSchedulePeriodDto {
   id: string;
   workspaceId: string;
   teamId: string;
+  groupId?: string | null;
   name: string;
   startDate: string;
   endDate: string;
@@ -126,6 +127,7 @@ export interface DemoScheduleAssignmentDto {
   workspaceId: string;
   periodId: string;
   teamId: string;
+  groupId?: string | null;
   memberId: string;
   date: string;
   assignmentType: DemoScheduleAssignmentType;

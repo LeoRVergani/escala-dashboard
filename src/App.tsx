@@ -30,6 +30,7 @@ import type {
   ServiceDeskN1Layer,
   ServiceDeskN1Row,
   ServiceDeskN1Shift,
+  OnCallGroup,
   WorkbookAnalysis,
 } from './types';
 import { cellKey, ScheduleGrid, type CellKey } from './components/ScheduleGrid';
@@ -65,6 +66,7 @@ import type { DemoPublicationPackage } from './lib/demoWorkspace/dto';
 import { eligibleOfficialMembers, toOfficialPackage, type OfficialCorporateLink } from './lib/officialWorkspace/retarget';
 import {
   buildOfficialPackageFromSchedule,
+  type OfficialImportOnCallGroupInput,
   type OfficialImportMemberInput,
   type OfficialImportTeamInput,
 } from './lib/officialWorkspace/buildFromSchedule';
@@ -73,6 +75,8 @@ import { buildPublicationPreview, type PublicationPreview } from './lib/publicat
 import { publishStructuredSchedule, type PublicationMode } from './lib/schedulePublishRepository';
 import { decideSwapRequest, loadSwapRequests } from './lib/swapRequestsRepository';
 import { saveTeam } from './lib/teamsRepository';
+import { loadOnCallGroups } from './lib/onCallGroupsRepository';
+import { activeGroupsForTeam, resolveOnCallGroupForImport } from './lib/onCallGroups';
 import type { ShiftSwapRequest, Team } from './types';
 import { AppShell, type AppShellSectionState } from './components/AppShell';
 import { Home, type HomeSummary } from './components/Home';
@@ -132,6 +136,10 @@ function officialTeamFromSchedule(state: ScheduleState): OfficialImportTeamInput
     return { name: 'Service Desk N1', hierarchy: 'SERVICE_DESK_N1' };
   }
   return { name: 'SOC/NOC', hierarchy: 'SOC_NOC' };
+}
+
+function officialTeamFromOnCallTeam(team: Team): OfficialImportTeamInput {
+  return { id: team.id, name: team.name, hierarchy: 'PLANTAO_COSI' };
 }
 
 function officialMembersFromSchedule(state: ScheduleState): OfficialImportMemberInput[] {
@@ -238,6 +246,9 @@ export default function App() {
   const [officialScheduleLoadResult, setOfficialScheduleLoadResult] = useState<OfficialScheduleLoadResult | null>(null);
   const [officialScheduleLoading, setOfficialScheduleLoading] = useState(false);
   const [showOfficialPublishDialog, setShowOfficialPublishDialog] = useState(false);
+  const [onCallGroups, setOnCallGroups] = useState<OnCallGroup[]>([]);
+  const [officialOnCallTeamId, setOfficialOnCallTeamId] = useState('');
+  const [officialOnCallGroupId, setOfficialOnCallGroupId] = useState('');
   // Snapshot congelado no momento da validação: o modal de confirmação e o publish() de fato
   // enviado usam SEMPRE estes valores, nunca o estado "vivo" de demoWorkspace/diff - evita que
   // uma edição no rascunho entre "Validar" e "Publicar" deixe o modal (ou o COMMIT) desalinhado
@@ -263,6 +274,31 @@ export default function App() {
     window.clearTimeout(toastTimer.current);
     toastTimer.current = window.setTimeout(() => setToast(null), 2600);
   }, []);
+
+  const reloadOnCallGroups = useCallback(async () => {
+    const groups = await loadOnCallGroups(firebaseDashboard.user, firebaseDashboard.teams);
+    setOnCallGroups(groups);
+  }, [firebaseDashboard.user, firebaseDashboard.teams]);
+
+  useEffect(() => {
+    void reloadOnCallGroups();
+  }, [reloadOnCallGroups]);
+
+  useEffect(() => {
+    const onCallTeams = firebaseDashboard.teams.filter((team) => team.scheduleKind === 'ON_CALL' && team.active);
+    setOfficialOnCallTeamId((current) => (current && onCallTeams.some((team) => team.id === current) ? current : onCallTeams[0]?.id ?? ''));
+  }, [firebaseDashboard.teams]);
+
+  useEffect(() => {
+    const activeGroups = activeGroupsForTeam(onCallGroups, officialOnCallTeamId);
+    setOfficialOnCallGroupId((current) => (
+      activeGroups.length === 1
+        ? activeGroups[0].id
+        : current && activeGroups.some((group) => group.id === current)
+          ? current
+          : ''
+    ));
+  }, [officialOnCallTeamId, onCallGroups]);
 
   // Navegação principal (FASE 14E) - substitui o antigo alternador local `socView`. É só
   // estado do App, sem router: trocar de seção nunca remonta o componente, então rascunho,
@@ -549,11 +585,26 @@ export default function App() {
     [notify],
   );
 
+  const resolveOfficialOnCallImport = useCallback((): { team: OfficialImportTeamInput; group: OfficialImportOnCallGroupInput } => {
+    const team = firebaseDashboard.teams.find((item) => item.id === officialOnCallTeamId);
+    const groupResult = resolveOnCallGroupForImport(onCallGroups, officialOnCallTeamId, officialOnCallGroupId);
+    if (!team) throw new Error('Selecione a equipe de plantão antes de importar.');
+    if (!groupResult.ok) throw new Error(groupResult.message);
+    return {
+      team: officialTeamFromOnCallTeam(team),
+      group: { id: groupResult.group.id, teamId: groupResult.group.teamId, name: groupResult.group.name },
+    };
+  }, [firebaseDashboard.teams, officialOnCallTeamId, onCallGroups, officialOnCallGroupId]);
+
   const applyOfficialScheduleSource = useCallback((state: ScheduleState, source: Exclude<OfficialSource, 'none' | 'demo'>) => {
+    const onCallContext = state.viewType === 'oncall' && state.onCallRecords?.length
+      ? resolveOfficialOnCallImport()
+      : null;
     const pkg = buildOfficialPackageFromSchedule(
       state,
-      officialTeamFromSchedule(state),
+      onCallContext?.team ?? officialTeamFromSchedule(state),
       officialMembersFromSchedule(state),
+      onCallContext?.group,
     );
     setOfficialBuiltPackage(pkg);
     setOfficialScheduleLoadedBaselinePackage(null);
@@ -562,7 +613,7 @@ export default function App() {
     setOfficialScheduleRevisionBase(null);
     setOfficialScheduleLoadResult(null);
     setOfficialPublishResult(null);
-  }, []);
+  }, [resolveOfficialOnCallImport]);
 
   const openOfficialFile = useCallback(
     async (file: File) => {
@@ -1276,7 +1327,7 @@ export default function App() {
         themePreference={themePreference}
         onCycleTheme={cycleTheme}
         sectionState={sectionState}
-        showAdminSection={firebaseDashboard.user?.isSystemAdmin === true || devLocalSession.active}
+        showAdminSection={firebaseDashboard.user?.isSystemAdmin === true || firebaseDashboard.user?.role === 'SCHEDULE_ADMIN' || devLocalSession.active}
         identityBar={(
           <LocalIdentityBar
             identity={localIdentity.identity}
@@ -1818,6 +1869,12 @@ export default function App() {
               void loadOfficialRemoteSchedule(revision);
             }}
             onReloadOfficialSchedule={() => void loadOfficialRemoteSchedule()}
+            onCallTeams={firebaseDashboard.teams.filter((team) => team.scheduleKind === 'ON_CALL' && team.active)}
+            onCallGroups={onCallGroups}
+            selectedOnCallTeamId={officialOnCallTeamId}
+            onSelectedOnCallTeamIdChange={setOfficialOnCallTeamId}
+            selectedOnCallGroupId={officialOnCallGroupId}
+            onSelectedOnCallGroupIdChange={setOfficialOnCallGroupId}
           />
         )}
 
@@ -1858,7 +1915,13 @@ export default function App() {
         )}
 
         {activeSection === 'admin' && (
-          <AdminUsersPanel user={firebaseDashboard.user} teams={firebaseDashboard.teams} devSessionActive={devLocalSession.active} />
+          <AdminUsersPanel
+            user={firebaseDashboard.user}
+            teams={firebaseDashboard.teams}
+            onCallGroups={onCallGroups}
+            onReloadOnCallGroups={reloadOnCallGroups}
+            devSessionActive={devLocalSession.active}
+          />
         )}
 
         {activeSection === 'settings' && (
@@ -2001,7 +2064,7 @@ export default function App() {
       )}
       {showTeamDialog && firebaseDashboard.user?.isSystemAdmin && <TeamDialog onCancel={() => setShowTeamDialog(false)} onSave={(team: Team) => {
         setFirebaseBusy(true);
-        void saveTeam(firebaseDashboard.user!, team).then(() => firebaseDashboard.reloadTeams(firebaseDashboard.user!)).then(() => { setShowTeamDialog(false); notify('Time salvo.'); }).catch((error) => firebaseDashboard.setError((error as Error).message)).finally(() => setFirebaseBusy(false));
+        void saveTeam(firebaseDashboard.user!, team).then(() => firebaseDashboard.reloadTeams(firebaseDashboard.user!)).then(() => reloadOnCallGroups()).then(() => { setShowTeamDialog(false); notify('Time salvo.'); }).catch((error) => firebaseDashboard.setError((error as Error).message)).finally(() => setFirebaseBusy(false));
       }} />}
 
       {toast && (

@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { firebaseServices } from '../lib/firebase';
 import type { AuthenticatedDashboardUser, Team } from '../types';
+import type { OnCallGroup } from '../types';
+import { OnCallGroupsAdminPanel } from './OnCallGroupsAdminPanel';
 
 const API_BASE_URL = (import.meta.env.VITE_DASHBOARD_API_BASE_URL as string | undefined) || 'http://127.0.0.1:3001';
 
@@ -19,6 +21,8 @@ interface AdminUserRecord {
 interface AdminUsersPanelProps {
   user: AuthenticatedDashboardUser | null;
   teams: Team[];
+  onCallGroups: OnCallGroup[];
+  onReloadOnCallGroups: () => Promise<void> | void;
   devSessionActive?: boolean;
 }
 
@@ -72,7 +76,7 @@ function roleLabel(role: AdminUserRecord['role'] | AdminRole): string {
   return 'USER';
 }
 
-export function AdminUsersPanel({ user, teams, devSessionActive = false }: AdminUsersPanelProps) {
+export function AdminUsersPanel({ user, teams, onCallGroups, onReloadOnCallGroups, devSessionActive = false }: AdminUsersPanelProps) {
   const [records, setRecords] = useState<AdminUserRecord[]>([]);
   const [form, setForm] = useState<AdminFormState>(EMPTY_FORM);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -81,10 +85,11 @@ export function AdminUsersPanel({ user, teams, devSessionActive = false }: Admin
   const [error, setError] = useState<string | null>(null);
 
   const teamById = useMemo(() => new Map(teams.map((team) => [team.id, team.name])), [teams]);
-  const canAdminister = user?.isSystemAdmin === true || devSessionActive;
+  const canAdministerUsers = user?.isSystemAdmin === true || devSessionActive;
+  const canAdministerOnCallGroups = user?.isSystemAdmin === true || user?.role === 'SCHEDULE_ADMIN' || devSessionActive;
 
   const loadUsers = async () => {
-    if (!canAdminister) return;
+    if (!canAdministerUsers) return;
     setLoading(true);
     setError(null);
     try {
@@ -99,9 +104,9 @@ export function AdminUsersPanel({ user, teams, devSessionActive = false }: Admin
 
   useEffect(() => {
     void loadUsers();
-  }, [canAdminister]);
+  }, [canAdministerUsers]);
 
-  if (!canAdminister) {
+  if (!canAdministerUsers && !canAdministerOnCallGroups) {
     return (
       <section className="admin-users-panel" aria-label="Administração">
         <div className="official-wizard-head">
@@ -181,7 +186,7 @@ export function AdminUsersPanel({ user, teams, devSessionActive = false }: Admin
       {error && <p className="admin-users-error" role="alert">{error}</p>}
 
       <div className="admin-users-layout">
-        <section className="official-wizard-panel admin-users-list" aria-label="Usuários administrativos">
+        {canAdministerUsers && <section className="official-wizard-panel admin-users-list" aria-label="Usuários administrativos">
           <div className="admin-users-list-head">
             <h3>Usuários</h3>
             <button type="button" className="btn" onClick={() => void loadUsers()} disabled={loading}>
@@ -229,9 +234,9 @@ export function AdminUsersPanel({ user, teams, devSessionActive = false }: Admin
               </table>
             </div>
           )}
-        </section>
+        </section>}
 
-        <form className="official-wizard-panel admin-users-form" onSubmit={submit} aria-label="Cadastro administrativo">
+        {canAdministerUsers && <form className="official-wizard-panel admin-users-form" onSubmit={submit} aria-label="Cadastro administrativo">
           <h3>{editingId ? 'Editar usuário' : 'Cadastrar usuário'}</h3>
           <label>
             Login
@@ -283,7 +288,17 @@ export function AdminUsersPanel({ user, teams, devSessionActive = false }: Admin
               </button>
             )}
           </div>
-        </form>
+        </form>}
+
+        {canAdministerOnCallGroups && (
+          <OnCallGroupsAdminPanel
+            user={user}
+            teams={teams}
+            groups={onCallGroups}
+            devSessionActive={devSessionActive}
+            onReload={onReloadOnCallGroups}
+          />
+        )}
       </div>
     </section>
   );

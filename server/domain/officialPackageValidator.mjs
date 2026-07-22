@@ -95,6 +95,14 @@ function hasWorkWithoutLocatedShift(pkg) {
   ));
 }
 
+function hasOnCallAssignmentWithoutGroup(pkg) {
+  return pkg.scheduleAssignments.some((item) => (
+    item.assignmentType === 'WORK_SHIFT'
+    && item.shiftName === 'Plantão'
+    && (typeof item.groupId !== 'string' || item.groupId.trim() === '')
+  ));
+}
+
 function duplicateAssignment(pkg) {
   const seen = new Set();
   return pkg.scheduleAssignments.find((item) => {
@@ -195,6 +203,14 @@ export function validateOfficialPackage({ packageRaw, manifestRaw }) {
       ok: false,
       code: 'SCHEDULE_WORK_SHIFT_NOT_LOCATED',
       message: 'O pacote contém trabalho declarado sem turno localizado na aba Escala.',
+    };
+  }
+
+  if (hasOnCallAssignmentWithoutGroup(parsedPackage)) {
+    return {
+      ok: false,
+      code: 'ON_CALL_GROUP_REQUIRED',
+      message: 'O pacote contém plantão sem grupo definido.',
     };
   }
 

@@ -13,8 +13,15 @@ export interface OfficialImportMemberInput {
 }
 
 export interface OfficialImportTeamInput {
+  id?: string;
   name: string;
   hierarchy: 'SOC_NOC' | 'PLANTAO_COSI' | 'SERVICE_DESK_N1';
+}
+
+export interface OfficialImportOnCallGroupInput {
+  id: string;
+  teamId: string;
+  name: string;
 }
 
 const TEAM_PREFIX_BY_HIERARCHY: Record<OfficialImportTeamInput['hierarchy'], string> = {
@@ -61,6 +68,7 @@ function slugify(value: string): string {
 }
 
 function teamId(team: OfficialImportTeamInput): string {
+  if (team.id?.trim()) return slugify(team.id);
   const prefix = TEAM_PREFIX_BY_HIERARCHY[team.hierarchy];
   const slug = slugify(team.name);
   return slug.startsWith(prefix) ? slug : `${prefix}${slug}`;
@@ -164,8 +172,13 @@ function onCallAssignments(
   schedule: ScheduleState,
   periodId: string,
   teamIdValue: string,
+  group: OfficialImportOnCallGroupInput,
   membersByKey: Map<string, string>,
 ): DemoScheduleAssignmentDto[] {
+  if (slugify(group.teamId) !== teamIdValue) {
+    throw new Error(`Grupo de plantão ${group.name} não pertence à equipe selecionada.`);
+  }
+
   return (schedule.onCallRecords ?? []).flatMap((record) => {
     const memberId = membersByKey.get(slugify(record.technician));
     if (!memberId) return [];
@@ -175,6 +188,7 @@ function onCallAssignments(
       workspaceId: OFFICIAL_WORKSPACE_ID,
       periodId,
       teamId: teamIdValue,
+      groupId: group.id,
       memberId,
       date: startDate,
       assignmentType: 'WORK_SHIFT',
@@ -190,6 +204,7 @@ export function buildOfficialPackageFromSchedule(
   schedule: ScheduleState,
   team: OfficialImportTeamInput,
   members: OfficialImportMemberInput[],
+  onCallGroup?: OfficialImportOnCallGroupInput,
 ): DemoPublicationPackage {
   const resolvedTeamId = teamId(team);
   const dates = scheduleDates(schedule);
@@ -215,8 +230,12 @@ export function buildOfficialPackageFromSchedule(
   }
 
   const memberIdByTechnician = scheduleMemberIdByTechnician(schedule, membersByKey);
-  const scheduleAssignments = schedule.onCallRecords?.length
-    ? onCallAssignments(schedule, periodId, resolvedTeamId, membersByKey)
+  const hasOnCallRecords = Boolean(schedule.onCallRecords?.length);
+  if (hasOnCallRecords && !onCallGroup) {
+    throw new Error('Selecione a equipe e o grupo de plantão antes de preparar o pacote oficial.');
+  }
+  const scheduleAssignments = hasOnCallRecords
+    ? onCallAssignments(schedule, periodId, resolvedTeamId, onCallGroup!, membersByKey)
     : matrixAssignments(schedule, periodId, resolvedTeamId, memberIdByTechnician);
 
   return {
@@ -264,6 +283,7 @@ export function buildOfficialPackageFromSchedule(
       id: periodId,
       workspaceId: OFFICIAL_WORKSPACE_ID,
       teamId: resolvedTeamId,
+      groupId: hasOnCallRecords ? onCallGroup!.id : null,
       name: periodName(schedule),
       startDate,
       endDate,

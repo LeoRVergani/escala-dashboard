@@ -157,6 +157,14 @@ describe('validateOfficialPackage', () => {
     expect(validate(pkg)).toMatchObject({ ok: false, code: 'SCHEDULE_WORK_SHIFT_NOT_LOCATED' });
   });
 
+  it('rejeita plantão sem groupId', () => {
+    const pkg = basePackage();
+    pkg.scheduleAssignments[0].assignmentType = 'WORK_SHIFT';
+    pkg.scheduleAssignments[0].shiftName = 'Plantão';
+
+    expect(validate(pkg)).toMatchObject({ ok: false, code: 'ON_CALL_GROUP_REQUIRED' });
+  });
+
   it('rejeita duas atribuicoes com o mesmo memberId e date', () => {
     const pkg = basePackage();
     pkg.schedulePeriods[0].startDate = '2026-07-01';

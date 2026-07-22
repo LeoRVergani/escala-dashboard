@@ -12,6 +12,11 @@ const teams: Team[] = [
   { id: 'team-b', code: 'B', name: 'Time B', responsibleLogin: 'owner@ici.test', scheduleKind: 'REGULAR', active: true, allowedImportLayouts: [] },
 ];
 
+const adminPanelProps = {
+  onCallGroups: [],
+  onReloadOnCallGroups: vi.fn(),
+};
+
 function dashboardUser(overrides: Partial<AuthenticatedDashboardUser> = {}): AuthenticatedDashboardUser {
   return {
     uid: 'uid-user',
@@ -37,7 +42,7 @@ describe('AdminUsersPanel', () => {
   });
 
   it('usuário comum vê acesso restrito e não vê formulário funcional', () => {
-    render(<AdminUsersPanel user={dashboardUser()} teams={teams} />);
+    render(<AdminUsersPanel user={dashboardUser()} teams={teams} {...adminPanelProps} />);
 
     expect(screen.getByText(/Acesso restrito a administradores do sistema/i)).toBeInTheDocument();
     expect(screen.queryByRole('form', { name: /Cadastro administrativo/i })).not.toBeInTheDocument();
@@ -57,7 +62,7 @@ describe('AdminUsersPanel', () => {
       return jsonResponse({ users: [] });
     });
 
-    render(<AdminUsersPanel user={dashboardUser({ isSystemAdmin: true })} teams={teams} />);
+    render(<AdminUsersPanel user={dashboardUser({ isSystemAdmin: true })} teams={teams} {...adminPanelProps} />);
 
     expect(await screen.findByText('admin@ici.test')).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText(/^Login$/i), { target: { value: 'new@ici.test' } });

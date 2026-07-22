@@ -7,6 +7,7 @@ import type { DemoPublicationPackage } from '../src/lib/demoWorkspace/dto';
 import type { OfficialFirebaseAdminStatus, OfficialValidationResult } from '../src/hooks/useOfficialRemotePublication';
 import fixturePackage from '../fixtures/demo/demo-v1-publication-package.json';
 import { buildOfficialTestPackage } from './fixtures/officialPackage';
+import type { OnCallGroup, Team } from '../src/types';
 
 const demoTaintedPackage = toOfficialPackage(fixturePackage as DemoPublicationPackage);
 const cleanPackage = buildOfficialTestPackage();
@@ -20,6 +21,33 @@ const adminStatusEnabled: OfficialFirebaseAdminStatus = {
 };
 
 const adminStatusDisabled: OfficialFirebaseAdminStatus = { ...adminStatusEnabled, allowOfficialFirestoreWrite: false };
+
+const onCallTeams: Team[] = [
+  {
+    id: 'cosi-plantao-plantao-cosi',
+    code: 'SOC-PLANTAO',
+    name: 'SOC Plantão',
+    responsibleLogin: 'admin@ici.test',
+    scheduleKind: 'ON_CALL',
+    active: true,
+    allowedImportLayouts: ['oncall'],
+  },
+  {
+    id: 'cosi-plantao-noc',
+    code: 'NOC-PLANTAO',
+    name: 'NOC Plantão',
+    responsibleLogin: 'admin@ici.test',
+    scheduleKind: 'ON_CALL',
+    active: true,
+    allowedImportLayouts: ['oncall'],
+  },
+];
+
+const onCallGroups: OnCallGroup[] = [
+  { id: 'cosi-plantao-plantao-cosi-cosi', teamId: 'cosi-plantao-plantao-cosi', name: 'COSI', active: true },
+  { id: 'cosi-plantao-noc-a', teamId: 'cosi-plantao-noc', name: 'Grupo A', active: true },
+  { id: 'cosi-plantao-noc-b', teamId: 'cosi-plantao-noc', name: 'Grupo B', active: true },
+];
 
 function baseProps(overrides: Partial<Parameters<typeof OfficialPublicationWizard>[0]> = {}) {
   return {
@@ -50,6 +78,12 @@ function baseProps(overrides: Partial<Parameters<typeof OfficialPublicationWizar
     onLoadOfficialActiveSchedule: vi.fn(),
     onLoadOfficialRevisionSchedule: vi.fn(),
     onReloadOfficialSchedule: vi.fn(),
+    onCallTeams,
+    onCallGroups,
+    selectedOnCallTeamId: 'cosi-plantao-plantao-cosi',
+    onSelectedOnCallTeamIdChange: vi.fn(),
+    selectedOnCallGroupId: 'cosi-plantao-plantao-cosi-cosi',
+    onSelectedOnCallGroupIdChange: vi.fn(),
     ...overrides,
   };
 }
@@ -162,5 +196,44 @@ describe('OfficialPublicationWizard (FASE 14E)', () => {
     expect(screen.getByText('Existe uma versão mais recente publicada desde que você carregou esta escala.')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Recarregar' }));
     expect(props.onReloadOfficialSchedule).toHaveBeenCalledTimes(1);
+  });
+
+  it('mantém "Escala importada" habilitada mesmo sem equipe de plantão escolhida', async () => {
+    const user = userEvent.setup();
+    const props = baseProps({ selectedOnCallTeamId: '', selectedOnCallGroupId: '' });
+    render(<OfficialPublicationWizard {...props} />);
+
+    const importButton = screen.getByRole('button', { name: /escala importada/i });
+    expect(importButton).toBeEnabled();
+    expect(screen.getByText('Selecione a equipe de plantão antes de importar.')).toBeInTheDocument();
+    await user.click(importButton);
+    expect(props.onStartImport).toHaveBeenCalledTimes(1);
+  });
+
+  it('SOC com grupo único pula seleção de grupo e mantém importação habilitada', () => {
+    render(<OfficialPublicationWizard {...baseProps()} />);
+
+    expect(screen.getByText('Grupo único: COSI.')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Grupo de plantão')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /escala importada/i })).toBeEnabled();
+  });
+
+  it('NOC com múltiplos grupos avisa seleção explícita sem bloquear a importação geral', () => {
+    const { rerender } = render(
+      <OfficialPublicationWizard
+        {...baseProps({ selectedOnCallTeamId: 'cosi-plantao-noc', selectedOnCallGroupId: '' })}
+      />,
+    );
+
+    expect(screen.getByLabelText('Grupo de plantão')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /escala importada/i })).toBeEnabled();
+    expect(screen.getByText('Selecione explicitamente o grupo de plantão antes de importar.')).toBeInTheDocument();
+
+    rerender(
+      <OfficialPublicationWizard
+        {...baseProps({ selectedOnCallTeamId: 'cosi-plantao-noc', selectedOnCallGroupId: 'cosi-plantao-noc-b' })}
+      />,
+    );
+    expect(screen.getByRole('button', { name: /escala importada/i })).toBeEnabled();
   });
 });
