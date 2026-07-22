@@ -40,6 +40,16 @@ function baseProps(overrides: Partial<Parameters<typeof OfficialPublicationWizar
     onStartEmptySchedule: vi.fn(),
     onSelectDemoPackage: vi.fn(),
     onGoToDemo: vi.fn(),
+    officialScheduleTeamId: 'team-oficial-soc',
+    onOfficialScheduleTeamIdChange: vi.fn(),
+    officialScheduleRevisionInput: '',
+    onOfficialScheduleRevisionInputChange: vi.fn(),
+    officialScheduleRevisionBase: null,
+    officialScheduleLoadResult: null,
+    officialScheduleLoading: false,
+    onLoadOfficialActiveSchedule: vi.fn(),
+    onLoadOfficialRevisionSchedule: vi.fn(),
+    onReloadOfficialSchedule: vi.fn(),
     ...overrides,
   };
 }
@@ -136,5 +146,21 @@ describe('OfficialPublicationWizard (FASE 14E)', () => {
     expect(diagnosticsPanel.getByText(/pertencem ao Ambiente Demo/i)).toBeInTheDocument();
     await user.click(diagnosticsPanel.getByRole('button', { name: /detalhes técnicos/i }));
     expect(diagnosticsPanel.getByText(/assertOfficialOnlyWritePlan/i)).toBeInTheDocument();
+  });
+
+  it('mostra ação de recarregar quando há conflito de revisão', async () => {
+    const user = userEvent.setup();
+    const props = baseProps({
+      lastError: {
+        code: 'PUBLICATION_REVISION_CONFLICT',
+        message: 'Revisão ativa esperada 2, mas a revisão real é 3.',
+      },
+    });
+    render(<OfficialPublicationWizard {...props} />);
+
+    await user.click(screen.getByRole('tab', { name: 'Resultado' }));
+    expect(screen.getByText('Existe uma versão mais recente publicada desde que você carregou esta escala.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Recarregar' }));
+    expect(props.onReloadOfficialSchedule).toHaveBeenCalledTimes(1);
   });
 });

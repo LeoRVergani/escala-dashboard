@@ -97,9 +97,10 @@ export interface ScheduleState {
   onCallRecords?: OnCallRecord[];
   sourceLabel?: string;
   isDemo?: boolean;
-  origin?: 'import' | 'empty-template' | 'demo-template' | 'demo-workspace-package' | 'manual';
+  origin?: 'import' | 'empty-template' | 'demo-template' | 'demo-workspace-package' | 'official-firebase' | 'manual';
   /** Time do pacote Demo atualmente projetado na grade. */
   demoTeamId?: string;
+  officialTeamId?: string;
   /** Organiza os colaboradores por turno predominante no período (uso do SOC). */
   visualGrouping?: 'operational-shift';
   /** Metadados e segunda grade específicos da Equipe Técnicos de TI N1. */

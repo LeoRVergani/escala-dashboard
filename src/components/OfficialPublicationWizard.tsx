@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { DemoPublicationPackage } from '../lib/demoWorkspace/dto';
+import type { OfficialScheduleLoadResult } from '../lib/officialWorkspace/officialScheduleGateway';
 import type { OfficialCorporateLink } from '../lib/officialWorkspace/retarget';
 import {
   eligibleOfficialMembers,
@@ -19,7 +20,7 @@ import { DiagnosticsPanel, type DiagnosticItem } from './DiagnosticsPanel';
 
 interface OfficialPublicationWizardProps {
   officialPackage: DemoPublicationPackage | null;
-  officialSource: 'none' | 'import' | 'dashboard' | 'demo';
+  officialSource: 'none' | 'import' | 'dashboard' | 'demo' | 'official';
   demoPackageAvailable: boolean;
   corporateLink: Partial<OfficialCorporateLink>;
   onCorporateLinkChange: (link: Partial<OfficialCorporateLink>) => void;
@@ -35,6 +36,16 @@ interface OfficialPublicationWizardProps {
   onStartEmptySchedule: () => void;
   onSelectDemoPackage: () => void;
   onGoToDemo: () => void;
+  officialScheduleTeamId: string;
+  onOfficialScheduleTeamIdChange: (teamId: string) => void;
+  officialScheduleRevisionInput: string;
+  onOfficialScheduleRevisionInputChange: (revision: string) => void;
+  officialScheduleRevisionBase: number | null;
+  officialScheduleLoadResult: OfficialScheduleLoadResult | null;
+  officialScheduleLoading: boolean;
+  onLoadOfficialActiveSchedule: () => void;
+  onLoadOfficialRevisionSchedule: () => void;
+  onReloadOfficialSchedule: () => void;
 }
 
 interface StepDef {
@@ -47,6 +58,15 @@ function backendStatusLabel(status: OfficialBackendStatus): string {
   if (status === 'ONLINE') return 'Online';
   if (status === 'OFFLINE') return 'Offline';
   return 'Verificando…';
+}
+
+function officialScheduleLoadMessage(result: OfficialScheduleLoadResult | null): string | null {
+  if (!result) return null;
+  if (result.status === 'OK') return `Escala oficial carregada da revisão ${result.revision}.`;
+  if (result.status === 'EMPTY') return 'Nenhuma revisão oficial foi publicada ainda.';
+  if (result.status === 'TEAM_NOT_FOUND') return `O time ${result.teamId} não existe na revisão ${result.revision}.`;
+  if (result.status === 'OFFLINE') return 'Backend indisponível. A escala local aberta foi preservada.';
+  return result.error.message;
 }
 
 /**
@@ -81,6 +101,16 @@ export function OfficialPublicationWizard({
   onStartEmptySchedule,
   onSelectDemoPackage,
   onGoToDemo,
+  officialScheduleTeamId,
+  onOfficialScheduleTeamIdChange,
+  officialScheduleRevisionInput,
+  onOfficialScheduleRevisionInputChange,
+  officialScheduleRevisionBase,
+  officialScheduleLoadResult,
+  officialScheduleLoading,
+  onLoadOfficialActiveSchedule,
+  onLoadOfficialRevisionSchedule,
+  onReloadOfficialSchedule,
 }: OfficialPublicationWizardProps) {
   const [step, setStep] = useState(1);
 
@@ -151,6 +181,8 @@ export function OfficialPublicationWizard({
   if (lastError) {
     diagnostics.push({ id: 'last-error', severity: 'error', message: lastError.message, detail: lastError.code });
   }
+  const hasRevisionConflict = lastError?.code === 'PUBLICATION_REVISION_CONFLICT';
+  const officialLoadMessage = officialScheduleLoadMessage(officialScheduleLoadResult);
 
   const goTo = (target: number) => {
     if (reachable[target]) setStep(target);
@@ -193,6 +225,16 @@ export function OfficialPublicationWizard({
               <button
                 type="button"
                 className="official-source-option"
+                aria-pressed={officialSource === 'official'}
+                onClick={onLoadOfficialActiveSchedule}
+                disabled={officialScheduleLoading || !officialScheduleTeamId.trim()}
+              >
+                <b>Publicação oficial ativa</b>
+                <span>Carrega a revisão ativa do Firebase para o time informado.</span>
+              </button>
+              <button
+                type="button"
+                className="official-source-option"
                 aria-pressed={officialSource === 'import'}
                 onClick={onStartImport}
               >
@@ -217,6 +259,52 @@ export function OfficialPublicationWizard({
                 <b>Pacote Demo <span className="official-source-badge">bloqueado</span></b>
                 <span>Retitula workspaceId para ici-dev, mas os IDs continuam contaminados por design.</span>
               </button>
+            </div>
+            <div className="official-publication-validation" role="group" aria-label="Carregar escala oficial publicada">
+              <label>
+                Time oficial
+                <input
+                  value={officialScheduleTeamId}
+                  placeholder="teamId"
+                  onChange={(event) => onOfficialScheduleTeamIdChange(event.target.value)}
+                />
+              </label>
+              <label>
+                Revisão anterior
+                <input
+                  value={officialScheduleRevisionInput}
+                  inputMode="numeric"
+                  placeholder="opcional"
+                  onChange={(event) => onOfficialScheduleRevisionInputChange(event.target.value)}
+                />
+              </label>
+              <button
+                type="button"
+                className="btn"
+                disabled={officialScheduleLoading || !officialScheduleTeamId.trim()}
+                onClick={onLoadOfficialActiveSchedule}
+              >
+                {officialScheduleLoading ? 'Carregando…' : `Carregar escala oficial ativa para o time ${officialScheduleTeamId || 'X'}`}
+              </button>
+              <button
+                type="button"
+                className="btn"
+                disabled={officialScheduleLoading || !officialScheduleTeamId.trim() || !officialScheduleRevisionInput.trim()}
+                onClick={onLoadOfficialRevisionSchedule}
+              >
+                Consultar revisão
+              </button>
+              {officialScheduleRevisionBase !== null && (
+                <span>Revisão-base para publicação: {officialScheduleRevisionBase}</span>
+              )}
+              {officialLoadMessage && (
+                <p
+                  className={officialScheduleLoadResult?.status === 'OK' ? 'official-wizard-ok' : 'official-publication-error'}
+                  role="status"
+                >
+                  {officialLoadMessage}
+                </p>
+              )}
             </div>
             {!officialPackage && (
               <p>
@@ -296,6 +384,14 @@ export function OfficialPublicationWizard({
               </div>
             )}
             {lastError && <p className="official-publication-error" role="alert">{lastError.message}</p>}
+            {hasRevisionConflict && (
+              <div className="official-publication-error" role="alert">
+                <p>Existe uma versão mais recente publicada desde que você carregou esta escala.</p>
+                <button type="button" className="btn" onClick={onReloadOfficialSchedule} disabled={officialScheduleLoading}>
+                  Recarregar
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -348,7 +444,17 @@ export function OfficialPublicationWizard({
               </p>
             )}
             {!publishResult && lastError && (
-              <p className="official-publication-error" role="alert">{lastError.message}</p>
+              <div className="official-publication-error" role="alert">
+                <p>{lastError.message}</p>
+                {hasRevisionConflict && (
+                  <>
+                    <p>Existe uma versão mais recente publicada desde que você carregou esta escala.</p>
+                    <button type="button" className="btn" onClick={onReloadOfficialSchedule} disabled={officialScheduleLoading}>
+                      Recarregar
+                    </button>
+                  </>
+                )}
+              </div>
             )}
             {!publishResult && !lastError && (
               <p>Nenhuma publicação foi realizada nesta sessão ainda.</p>

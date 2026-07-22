@@ -3,7 +3,7 @@
 // nenhuma rota possa ser enganada a publicar em outro lugar (ver adendo FASE 14D).
 const WORKSPACE_ID = 'ici-dev';
 
-const ENTITY_COLLECTIONS = [
+export const ENTITY_COLLECTIONS = [
   ['teams', 'teams'],
   ['members', 'members'],
   ['memberTeamMemberships', 'member_team_memberships'],

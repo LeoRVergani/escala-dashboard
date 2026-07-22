@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { DemoPublicationPackage } from '../lib/demoWorkspace/dto';
 import { sha256Hex } from '../lib/demoWorkspace/validation';
-import { firebaseServices } from '../lib/firebase';
 import type { OfficialCorporateLink } from '../lib/officialWorkspace/retarget';
 import { OFFICIAL_WORKSPACE_ID } from '../lib/officialWorkspace/retarget';
+import { requestJson, type OfficialApiError } from '../lib/officialWorkspace/apiClient';
 
 // Espelha useDemoRemotePublication.ts, mas para o workspace oficial ici-dev. Deliberadamente
 // não tem resetRemote - publicação oficial não implementa reset/exclusão nesta fase.
-const API_BASE_URL = (import.meta.env.VITE_DASHBOARD_API_BASE_URL as string | undefined) || 'http://127.0.0.1:3001';
 const REQUIRED_ARRAY_KEYS = [
   'teams',
   'members',
@@ -22,10 +21,7 @@ const REQUIRED_ARRAY_KEYS = [
 export type OfficialBackendStatus = 'UNKNOWN' | 'ONLINE' | 'OFFLINE';
 export type OfficialRemoteBusy = 'IDLE' | 'VALIDATING' | 'PUBLISHING';
 
-export interface OfficialRemoteError {
-  code: string;
-  message: string;
-}
+export type OfficialRemoteError = OfficialApiError;
 
 export interface OfficialFirebaseAdminStatus {
   configured: boolean;
@@ -53,45 +49,8 @@ interface PublishSuccess {
   publicationRevision: number;
 }
 
-type ApiResult<T> =
-  | { ok: true; body: T }
-  | { ok: false; error: OfficialRemoteError; offline?: boolean };
-
-function endpoint(path: string): string {
-  return `${API_BASE_URL.replace(/\/$/, '')}${path}`;
-}
-
 function officialCounts(pkg: DemoPublicationPackage): Record<(typeof REQUIRED_ARRAY_KEYS)[number], number> {
   return Object.fromEntries(REQUIRED_ARRAY_KEYS.map((key) => [key, pkg[key].length])) as Record<(typeof REQUIRED_ARRAY_KEYS)[number], number>;
-}
-
-async function readApiError(response: Response): Promise<OfficialRemoteError> {
-  try {
-    const body = await response.json() as { error?: { code?: string; message?: string } };
-    return {
-      code: body.error?.code || `HTTP_${response.status}`,
-      message: body.error?.message || 'Não foi possível concluir a operação.',
-    };
-  } catch {
-    return { code: `HTTP_${response.status}`, message: 'Não foi possível concluir a operação.' };
-  }
-}
-
-async function requestJson<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {
-  try {
-    const headers = new Headers(init?.headers);
-    const idToken = await firebaseServices()?.auth.currentUser?.getIdToken();
-    if (idToken) {
-      headers.set('Authorization', `Bearer ${idToken}`);
-    }
-    const response = await fetch(endpoint(path), { ...init, credentials: 'include', headers });
-    if (!response.ok) {
-      return { ok: false, error: await readApiError(response) };
-    }
-    return { ok: true, body: await response.json() as T };
-  } catch {
-    return { ok: false, offline: true, error: { code: 'API_UNAVAILABLE', message: 'Backend indisponível.' } };
-  }
 }
 
 async function buildPublishBody(
@@ -121,7 +80,7 @@ async function buildPublishBody(
   };
 }
 
-export function useOfficialRemotePublication(enabled = false) {
+export function useOfficialRemotePublication(enabled = false, expectedActiveRevisionOverride: number | null = null) {
   const [backendStatus, setBackendStatus] = useState<OfficialBackendStatus>('UNKNOWN');
   const [firebaseAdminStatus, setFirebaseAdminStatus] = useState<OfficialFirebaseAdminStatus | null>(null);
   const [validation, setValidation] = useState<OfficialValidationResult | null>(null);
@@ -162,7 +121,7 @@ export function useOfficialRemotePublication(enabled = false) {
       const body = await buildPublishBody(
         officialPackage,
         corporateLink,
-        firebaseAdminStatus?.activePublicationRevision ?? 0,
+        expectedActiveRevisionOverride ?? firebaseAdminStatus?.activePublicationRevision ?? 0,
         'DRY_RUN',
       );
       const result = await requestJson<OfficialValidationResult>('/api/publish/official', {
@@ -182,7 +141,7 @@ export function useOfficialRemotePublication(enabled = false) {
     } finally {
       setBusy('IDLE');
     }
-  }, [firebaseAdminStatus?.activePublicationRevision]);
+  }, [expectedActiveRevisionOverride, firebaseAdminStatus?.activePublicationRevision]);
 
   const publish = useCallback(async (
     officialPackage: DemoPublicationPackage,
@@ -194,7 +153,7 @@ export function useOfficialRemotePublication(enabled = false) {
       const body = await buildPublishBody(
         officialPackage,
         corporateLink,
-        firebaseAdminStatus?.activePublicationRevision ?? 0,
+        expectedActiveRevisionOverride ?? firebaseAdminStatus?.activePublicationRevision ?? 0,
         'COMMIT',
       );
       const result = await requestJson<PublishSuccess>('/api/publish/official', {
@@ -214,7 +173,7 @@ export function useOfficialRemotePublication(enabled = false) {
     } finally {
       setBusy('IDLE');
     }
-  }, [firebaseAdminStatus?.activePublicationRevision, refreshStatus]);
+  }, [expectedActiveRevisionOverride, firebaseAdminStatus?.activePublicationRevision, refreshStatus]);
 
   return useMemo(() => ({
     backendStatus,

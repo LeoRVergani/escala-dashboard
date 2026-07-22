@@ -9,6 +9,7 @@ import { createDemoStatusRouter } from './routes/demoStatus.mjs';
 import { createDevLoginRouter } from './routes/devLogin.mjs';
 import { createHealthRouter } from './routes/health.mjs';
 import { createOfficialPublishRouter } from './routes/officialPublish.mjs';
+import { createOfficialScheduleRouter } from './routes/officialSchedule.mjs';
 import { createOfficialStatusRouter } from './routes/officialStatus.mjs';
 import { createPublishRouter } from './routes/publish.mjs';
 
@@ -76,6 +77,7 @@ export function createApp(config, overrides = {}) {
   app.use('/api/demo/reset', createDemoResetRouter(routeDependencies));
   app.use('/api/publish', createPublishRouter(routeDependencies));
   app.use('/api/official/status', createOfficialStatusRouter(routeDependencies));
+  app.use('/api/official/schedule', createOfficialScheduleRouter(routeDependencies));
   app.use('/api/publish/official', createOfficialPublishRouter(routeDependencies));
   app.use('/api/admin', createAdminRouter(routeDependencies));
   if (config.devLocalAuthEnabled === true && config.nodeEnv !== 'production') {

@@ -53,6 +53,7 @@ import { DemoManagerAssignmentsDialog } from './components/DemoManagerAssignment
 import { applyScheduleStateToPackage, demoPackageToScheduleState } from './lib/demoWorkspace/scheduleAdapter';
 import { diffDemoPackages } from './lib/demoWorkspace/diff';
 import { buildDemoWorkspaceExport, demoWorkspaceExportFileName } from './lib/demoWorkspace/export';
+import { loadOfficialSchedule, type OfficialScheduleLoadResult } from './lib/officialWorkspace/officialScheduleGateway';
 import { moveSocAssignment, removeSocAssignment, updateSocAssignment, type SocShiftId } from './lib/socPlanner';
 import { useFirebaseDashboard } from './hooks/useFirebaseDashboard';
 import { useDemoWorkspace } from './hooks/useDemoWorkspace';
@@ -95,7 +96,7 @@ interface PendingImport {
   analysis: WorkbookAnalysis;
 }
 
-type OfficialSource = 'none' | 'import' | 'dashboard' | 'demo';
+type OfficialSource = 'none' | 'import' | 'dashboard' | 'demo' | 'official';
 
 type Clipboard =
   | { kind: 'day'; values: Record<string, CellValue | undefined> }
@@ -188,7 +189,8 @@ export default function App() {
   // workspace ser carregado, e a Publicação Oficial agora é uma seção própria, alcançável
   // sem passar pelo Ambiente Demo primeiro.
   const demoRemotePublication = useDemoRemotePublication(true);
-  const officialRemotePublication = useOfficialRemotePublication(true);
+  const [officialScheduleRevisionBase, setOfficialScheduleRevisionBase] = useState<number | null>(null);
+  const officialRemotePublication = useOfficialRemotePublication(true, officialScheduleRevisionBase);
   const [activeSection, setActiveSection] = useState<AppSection>(() => loadStoredSection());
   const [navCollapsed, setNavCollapsed] = useState(() => loadStoredNavCollapsed());
   const [uiCompact, setUiCompact] = useState(() => loadStoredUiCompact());
@@ -222,6 +224,10 @@ export default function App() {
   const [officialCorporateLink, setOfficialCorporateLink] = useState<Partial<OfficialCorporateLink>>({});
   const [officialSource, setOfficialSource] = useState<OfficialSource>('none');
   const [officialBuiltPackage, setOfficialBuiltPackage] = useState<DemoPublicationPackage | null>(null);
+  const [officialScheduleTeamId, setOfficialScheduleTeamId] = useState('');
+  const [officialScheduleRevisionInput, setOfficialScheduleRevisionInput] = useState('');
+  const [officialScheduleLoadResult, setOfficialScheduleLoadResult] = useState<OfficialScheduleLoadResult | null>(null);
+  const [officialScheduleLoading, setOfficialScheduleLoading] = useState(false);
   const [showOfficialPublishDialog, setShowOfficialPublishDialog] = useState(false);
   // Snapshot congelado no momento da validação: o modal de confirmação e o publish() de fato
   // enviado usam SEMPRE estes valores, nunca o estado "vivo" de demoWorkspace/diff - evita que
@@ -420,6 +426,38 @@ export default function App() {
     await officialRemotePublication.validate(officialPackage, officialCorporateLink as OfficialCorporateLink);
   }, [officialPackage, officialCorporateLink, officialRemotePublication]);
 
+  const loadOfficialRemoteSchedule = useCallback(async (revision?: number) => {
+    const teamId = officialScheduleTeamId.trim() || officialCorporateLink.teamId?.trim();
+    if (!teamId) {
+      setOfficialScheduleLoadResult({
+        status: 'ERROR',
+        error: { code: 'INVALID_PACKAGE', message: 'Informe o teamId oficial antes de carregar.' },
+      });
+      return;
+    }
+
+    setOfficialScheduleLoading(true);
+    try {
+      const result = await loadOfficialSchedule(teamId, revision);
+      setOfficialScheduleLoadResult(result);
+      if (result.status !== 'OK') return;
+
+      setOfficialBuiltPackage(result.package);
+      setOfficialSource('official');
+      setOfficialCorporateLink((current) => ({ ...current, teamId: result.teamId }));
+      setOfficialScheduleTeamId(result.teamId);
+      setOfficialScheduleRevisionBase(result.revision);
+      setOfficialPublishResult(null);
+      history.reset(result.schedule);
+      setN1Layer('principal');
+      setSelection(new Set());
+      setClipboard(null);
+      notify(`Escala oficial carregada da revisão ${result.revision}.`);
+    } finally {
+      setOfficialScheduleLoading(false);
+    }
+  }, [officialScheduleTeamId, officialCorporateLink.teamId, history, notify]);
+
   const openOfficialPublishDialog = useCallback(async () => {
     if (officialRemotePublication.busy !== 'IDLE') return;
     if (!officialPackage || !officialCorporateLink.memberId || !officialCorporateLink.teamId) return;
@@ -493,6 +531,8 @@ export default function App() {
     setOfficialBuiltPackage(pkg);
     setOfficialSource(source);
     setOfficialCorporateLink({});
+    setOfficialScheduleRevisionBase(null);
+    setOfficialScheduleLoadResult(null);
     setOfficialPublishResult(null);
   }, []);
 
@@ -561,6 +601,8 @@ export default function App() {
     setOfficialSource('demo');
     setOfficialBuiltPackage(null);
     setOfficialCorporateLink({});
+    setOfficialScheduleRevisionBase(null);
+    setOfficialScheduleLoadResult(null);
     setOfficialPublishResult(null);
     if (!demoWorkspaceState) {
       notify('Carregue o Ambiente Demo antes de selecionar o pacote bloqueado.');
@@ -758,6 +800,10 @@ export default function App() {
         notify('A composição de membros do Ambiente de Demonstração é fixa pela fixture oficial.');
         return;
       }
+      if (schedule?.origin === 'official-firebase') {
+        notify('A composição de membros desta escala revisionada é fixa; edite apenas as atribuições.');
+        return;
+      }
       mutate((prev) => {
         if (prev.serviceDeskN1) {
           const fullName = formatN1Name(name || 'Novo técnico');
@@ -796,6 +842,10 @@ export default function App() {
     (id: string, login: string, name: string) => {
       if (schedule?.origin === 'demo-workspace-package') {
         notify('A composição de membros do Ambiente de Demonstração é fixa pela fixture oficial.');
+        return;
+      }
+      if (schedule?.origin === 'official-firebase') {
+        notify('A composição de membros desta escala revisionada é fixa; edite apenas as atribuições.');
         return;
       }
       mutate((prev) => {
@@ -840,6 +890,10 @@ export default function App() {
     (id: string) => {
       if (schedule?.origin === 'demo-workspace-package') {
         notify('A composição de membros do Ambiente de Demonstração é fixa pela fixture oficial.');
+        return;
+      }
+      if (schedule?.origin === 'official-firebase') {
+        notify('A composição de membros desta escala revisionada é fixa; edite apenas as atribuições.');
         return;
       }
       mutate((prev) => {
@@ -1054,12 +1108,18 @@ export default function App() {
         if (JSON.stringify(next.scheduleAssignments) !== JSON.stringify(demoWorkspace.state.draftPackage.scheduleAssignments)) {
           demoWorkspace.updateDraft((draft) => applyScheduleStateToPackage(draft, schedule, schedule.demoTeamId!));
         }
+      } else if (schedule.origin === 'official-firebase') {
+        if (!schedule.officialTeamId || !officialBuiltPackage) return;
+        const next = applyScheduleStateToPackage(officialBuiltPackage, schedule, schedule.officialTeamId);
+        if (JSON.stringify(next.scheduleAssignments) !== JSON.stringify(officialBuiltPackage.scheduleAssignments)) {
+          setOfficialBuiltPackage(next);
+        }
       } else {
         saveDraft(schedule, firebaseDashboard.selectedTeamId || undefined);
       }
     }, 800);
     return () => window.clearTimeout(id);
-  }, [schedule, firebaseDashboard.selectedTeamId, demoWorkspace]);
+  }, [schedule, firebaseDashboard.selectedTeamId, demoWorkspace, officialBuiltPackage]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1709,6 +1769,26 @@ export default function App() {
             onStartEmptySchedule={() => setOfficialTemplateWizardOpen(true)}
             onSelectDemoPackage={selectOfficialDemoPackage}
             onGoToDemo={() => navigate('demo')}
+            officialScheduleTeamId={officialScheduleTeamId}
+            onOfficialScheduleTeamIdChange={setOfficialScheduleTeamId}
+            officialScheduleRevisionInput={officialScheduleRevisionInput}
+            onOfficialScheduleRevisionInputChange={setOfficialScheduleRevisionInput}
+            officialScheduleRevisionBase={officialScheduleRevisionBase}
+            officialScheduleLoadResult={officialScheduleLoadResult}
+            officialScheduleLoading={officialScheduleLoading}
+            onLoadOfficialActiveSchedule={() => void loadOfficialRemoteSchedule()}
+            onLoadOfficialRevisionSchedule={() => {
+              const revision = Number(officialScheduleRevisionInput);
+              if (!Number.isInteger(revision) || revision <= 0) {
+                setOfficialScheduleLoadResult({
+                  status: 'ERROR',
+                  error: { code: 'INVALID_PACKAGE', message: 'Informe uma revisão positiva.' },
+                });
+                return;
+              }
+              void loadOfficialRemoteSchedule(revision);
+            }}
+            onReloadOfficialSchedule={() => void loadOfficialRemoteSchedule()}
           />
         )}
 

@@ -15,6 +15,10 @@ function writeCollectionDoc(db, write) {
   return db.collection(write.collectionPath ?? write.collection).doc(write.id);
 }
 
+function revisionCollectionPath(workspaceId, revision, collection) {
+  return `workspaces/${workspaceId}/revisions/${revision}/${collection}`;
+}
+
 async function readDocumentData(ref) {
   const snap = await ref.get();
   return snap.exists ? snap.data() : null;
@@ -245,6 +249,13 @@ export function createFirestorePublicationStore(db) {
       }
 
       return snap.docs[0].data();
+    },
+
+    async readRevisionSnapshot(workspaceId, revision, collection) {
+      const snap = await db.collection(revisionCollectionPath(workspaceId, revision, collection)).get();
+      return snap.docs
+        .map((doc) => ({ id: doc.id, ...doc.data() }))
+        .sort((left, right) => String(left.id).localeCompare(String(right.id)));
     },
   };
 }
