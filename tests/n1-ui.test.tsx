@@ -41,6 +41,8 @@ describe('modo visual Service Desk N1', () => {
     expect(screen.getByRole('button', { name: /^E · Executa a atividade de E-mail$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^G · Executa a atividade de garantia$/i })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /^T · Todos \(E-mail e Garantia\)$/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^DU · DSR — Dia útil$/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Folga · Folga — Feriado$/ })).not.toBeInTheDocument();
     expect(screen.getByLabelText(/Pausa de Alice Exemplo/i)).toHaveValue('05:15');
   });
 });

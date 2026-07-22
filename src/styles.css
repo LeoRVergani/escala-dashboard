@@ -21,9 +21,9 @@
   --radius: 8px;
   --shadow: 0 8px 28px rgba(23, 33, 31, 0.14);
 
-  --sh-madrugada-bg: #ede9fe; --sh-madrugada-fg: #5b21b6;
-  --sh-manha-bg: #fef3c7;     --sh-manha-fg: #92510a;
-  --sh-tarde-bg: #cffafe;     --sh-tarde-fg: #0e7490;
+  --sh-madrugada-bg: #e0e7ff; --sh-madrugada-fg: #3730a3;
+  --sh-manha-bg: #fef9c3;     --sh-manha-fg: #713f12;
+  --sh-tarde-bg: #ffedd5;     --sh-tarde-fg: #9a3412;
   --sh-noite-bg: #dbeafe;     --sh-noite-fg: #1e3a8a;
   --sh-folga-bg: #dcfce7;     --sh-folga-fg: #15803d;
   --sh-ferias-bg: #fce7f3;    --sh-ferias-fg: #be185d;

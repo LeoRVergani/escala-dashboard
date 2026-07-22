@@ -39,6 +39,34 @@ describe('grade de escalas (via App)', () => {
     expect(within(grid).getByText(/Analista SOC\/NOC Fictício 06/)).toBeInTheDocument();
   });
 
+  it('mostra a legenda SOC canônica em duas seções e na ordem da spec', async () => {
+    await renderWithDemo();
+    const legend = screen.getByLabelText('Legenda e preenchimento rápido');
+    const chipTexts = Array.from(legend.querySelectorAll('button.chip:not(.chip-clear)'))
+      .map((button) => button.textContent?.trim());
+
+    expect(within(legend).getByText('Turnos:')).toBeInTheDocument();
+    expect(within(legend).getByText('Situações:')).toBeInTheDocument();
+    expect(chipTexts).toEqual([
+      'Md · Madrugada',
+      'M · Manhã',
+      'T · Tarde',
+      'N · Noite',
+      'DU · DSR — Dia útil',
+      'DF · DSR — Final de semana',
+      'BH · Compensação BH',
+      'AN · Folga Aniversário',
+      'X · Férias',
+      '# · Afastamento/Atestado',
+      'Folga · Folga — Feriado',
+      'HE · Hora Extra',
+    ]);
+    expect(within(legend).queryByRole('button', { name: /^MAD · Madrugada$/ })).not.toBeInTheDocument();
+    expect(within(legend).queryByRole('button', { name: /^F · Folga$/ })).not.toBeInTheDocument();
+    expect(within(legend).queryByRole('button', { name: /^FE · Férias$/ })).not.toBeInTheDocument();
+    expect(within(legend).queryByRole('button', { name: /^AF · Afastamento$/ })).not.toBeInTheDocument();
+  });
+
   it('altera uma célula pelo menu e desfaz/refaz', async () => {
     const { user, grid } = await renderWithDemo();
 
@@ -85,7 +113,7 @@ describe('grade de escalas (via App)', () => {
     fireEvent.click(cell(grid, /Analista SOC\/NOC Fictício 01/, 20), { ctrlKey: true });
     fireEvent.click(cell(grid, /Analista SOC\/NOC Fictício 01/, 21), { ctrlKey: true });
 
-    await user.click(screen.getByRole('button', { name: /FE · Férias/ }));
+    await user.click(screen.getByRole('button', { name: /X · Férias/ }));
     expect(cell(grid, /Analista SOC\/NOC Fictício 01/, 20)).toHaveAccessibleName(/Férias/);
     expect(cell(grid, /Analista SOC\/NOC Fictício 01/, 21)).toHaveAccessibleName(/Férias/);
   });

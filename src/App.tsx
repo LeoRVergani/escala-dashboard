@@ -24,6 +24,7 @@ import {
   updateN1Rows,
 } from './lib/serviceDeskN1';
 import { fold } from './lib/normalize';
+import { ALL_SCHEDULE_TOKENS, type ScheduleToken } from './lib/scheduleTokens';
 import type {
   CellValue,
   ScheduleState,
@@ -118,6 +119,49 @@ function shortN1Name(raw: string): string {
   const full = formatN1Name(raw);
   const words = full.split(/\s+/).filter(Boolean);
   return words.length <= 2 ? full : `${words[0]} ${words[words.length - 1]}`;
+}
+
+const SOC_TURNO_LEGEND_TOKENS = ALL_SCHEDULE_TOKENS.filter((token) => token.order <= 4);
+const SOC_SITUACAO_LEGEND_TOKENS = ALL_SCHEDULE_TOKENS.filter((token) => token.order > 4);
+
+function relativeLuminance(hex: string): number {
+  const clean = hex.replace('#', '');
+  const [red = 0, green = 0, blue = 0] = [0, 2, 4].map((offset) => {
+    const value = Number.parseInt(clean.slice(offset, offset + 2), 16) / 255;
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  return red * 0.2126 + green * 0.7152 + blue * 0.0722;
+}
+
+function contrastRatio(a: string, b: string): number {
+  const lighter = Math.max(relativeLuminance(a), relativeLuminance(b));
+  const darker = Math.min(relativeLuminance(a), relativeLuminance(b));
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+function readableTextColor(backgroundHex: string): '#000000' | '#ffffff' {
+  return contrastRatio(backgroundHex, '#000000') >= contrastRatio(backgroundHex, '#ffffff')
+    ? '#000000'
+    : '#ffffff';
+}
+
+function cellValueForSocLegendToken(token: ScheduleToken): CellValue {
+  switch (token.code) {
+    case 'Md': return { shift: 'madrugada' };
+    case 'M': return { shift: 'manha' };
+    case 'T': return { shift: 'tarde' };
+    case 'N': return { shift: 'noite' };
+    case 'DU':
+    case 'DF':
+    case 'BH':
+    case 'AN':
+    case 'Folga':
+      return { shift: 'folga', text: token.code };
+    case 'X': return { shift: 'ferias', text: token.code };
+    case '#': return { shift: 'afastamento', text: token.code };
+    case 'HE': return { shift: 'extra', text: token.code };
+    default: return { shift: 'custom', text: token.code };
+  }
 }
 
 /** Rótulo humano do tipo de escala para o resumo da Home (FASE 14E). */
@@ -1661,23 +1705,64 @@ export default function App() {
                       {item.code} · {item.label}
                     </button>
                   ))
-                : SHIFTS.map((s) => (
-                    <button
-                      key={s.id}
-                      className="chip"
-                      disabled={selection.size === 0}
-                      style={{
-                        ['--chip-bg' as string]: `var(--sh-${s.id}-bg)`,
-                        ['--chip-fg' as string]: `var(--sh-${s.id}-fg)`,
-                      }}
-                      onClick={() => {
-                        applyShift([...selection], { shift: s.id });
-                        notify(`${s.label} aplicado a ${selection.size} células.`);
-                      }}
-                    >
-                      {s.code} · {s.label}
-                    </button>
-                  ))}
+                : isSoc
+                  ? (
+                      <>
+                        <span className="hint">Turnos:</span>
+                        {SOC_TURNO_LEGEND_TOKENS.map((token) => (
+                          <button
+                            key={token.code}
+                            className="chip"
+                            disabled={selection.size === 0}
+                            style={{
+                              backgroundColor: token.colorHex,
+                              color: readableTextColor(token.colorHex),
+                            }}
+                            onClick={() => {
+                              applyShift([...selection], cellValueForSocLegendToken(token));
+                              notify(`${token.code} · ${token.label} aplicado a ${selection.size} células.`);
+                            }}
+                          >
+                            {token.code} · {token.label}
+                          </button>
+                        ))}
+                        <span className="hint">Situações:</span>
+                        {SOC_SITUACAO_LEGEND_TOKENS.map((token) => (
+                          <button
+                            key={token.code}
+                            className="chip"
+                            disabled={selection.size === 0}
+                            style={{
+                              backgroundColor: token.colorHex,
+                              color: readableTextColor(token.colorHex),
+                            }}
+                            onClick={() => {
+                              applyShift([...selection], cellValueForSocLegendToken(token));
+                              notify(`${token.code} · ${token.label} aplicado a ${selection.size} células.`);
+                            }}
+                          >
+                            {token.code} · {token.label}
+                          </button>
+                        ))}
+                      </>
+                    )
+                  : SHIFTS.map((s) => (
+                      <button
+                        key={s.id}
+                        className="chip"
+                        disabled={selection.size === 0}
+                        style={{
+                          ['--chip-bg' as string]: `var(--sh-${s.id}-bg)`,
+                          ['--chip-fg' as string]: `var(--sh-${s.id}-fg)`,
+                        }}
+                        onClick={() => {
+                          applyShift([...selection], { shift: s.id });
+                          notify(`${s.label} aplicado a ${selection.size} células.`);
+                        }}
+                      >
+                        {s.code} · {s.label}
+                      </button>
+                    ))}
               <button
                 className="chip chip-clear"
                 disabled={selection.size === 0}
