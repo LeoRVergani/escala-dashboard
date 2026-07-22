@@ -1,5 +1,59 @@
 # Histórico de versões
 
+## 1.15.2 — 22/07/2026
+
+- **FASE 14H — fidelidade do parser oficial, grupos de plantão e contratos de
+  notificação Push** (spec `docs/spec/10-DASHBOARD-FASE14H-CONTRATO-ESCALA-PLANTAO-NOTIFICACOES.md`).
+  Nenhuma publicação real, nenhuma escrita real no Firestore, nenhum deploy —
+  revisões 1 e 2 (`ici-dev`) permanecem intactas.
+  - corrige a causa raiz de folgas desaparecendo na importação: o parser
+    tratava as abas "Escala" e "Escalistas" como origens alternativas, nunca
+    cruzadas, e um dia sem login em nenhuma coluna de turno nem na coluna de
+    observação nunca produzia registro algum (`matrixAssignments` tinha
+    `if (!value) return`). Nova opção de importação "SOC cruzado" (layout
+    `soc-combined`) cruza as duas abas por (membro, data); `matrixAssignments`
+    agora sempre produz uma atribuição por dia, nunca ausência de registro,
+    em qualquer layout de aba única também;
+  - trabalho declarado (`1`-`6`) sem turno localizado na aba Escala vira
+    inconsistência explícita, bloqueada no dry-run e no commit
+    (`SCHEDULE_WORK_SHIFT_NOT_LOCATED`); `BH`/`Aniversário` deixam de
+    colapsar em folga genérica; separadores de nomes em célula padronizados
+    (`/`, quebra de linha, `,`, `;`) em qualquer coluna;
+  - endurece a autorização por time da publicação oficial: a rota só
+    autorizava o `teamId` único do vínculo corporativo — agora
+    `requirePackageTeamAuthorization` valida **todo** `teamId` referenciado
+    dentro do pacote construído no cliente contra os times autorizados do
+    chamador (`FORBIDDEN_TEAM_IN_PACKAGE`); validador oficial ganha checagem
+    de atribuição duplicada (`DUPLICATE_ASSIGNMENT`) e atribuição fora do
+    período referenciado (`ASSIGNMENT_DATE_OUT_OF_PERIOD`); dry-run passa a
+    devolver período, contagens por tipo/turno, folgas por membro e avisos;
+  - **grupos de plantão** (conceito novo — nem o legado `EscalaSOC` nem este
+    código tinham "grupo" até aqui, "COSI" era só o nome do relatório):
+    `OnCallGroup` novo, `groupId` em período/atribuições de plantão;
+    `buildOfficialPackageFromSchedule` recusa preparar pacote de plantão sem
+    grupo explicitamente escolhido, nunca infere pelo nome da planilha;
+    validador oficial ganha checagem simétrica (`ON_CALL_GROUP_REQUIRED`).
+    Wizard oficial: equipe com grupo único (SOC/COSI) pula seleção; múltiplos
+    grupos (NOC) exigem escolha explícita — sem nunca bloquear a importação
+    comum de escala 6x1 (achado e corrigido em revisão: a validação de
+    plantão não pode desabilitar o botão de importação geral). Gestão mínima
+    de grupos na seção Administração;
+  - **infraestrutura de assinatura/notificação Push** — contrato e testes
+    apenas, nenhum envio real, nenhuma credencial VAPID/FCM criada ou
+    versionada: `POST`/`DELETE /api/push/subscriptions` sempre associados ao
+    caller verificado (nunca a um `memberId` do corpo), revogação só pelo
+    dono ou `SYSTEM_ADMIN`, token/endpoint nunca expostos além de um
+    fingerprint SHA-256 curto, idempotência por `(memberId, platform, token)`;
+    seleção de destinatário por membro (só o próprio) ou equipe (autorização
+    reaproveitada); construtores de evento determinísticos ("nova escala
+    publicada", "seu dia mudou"); planejador de despacho sempre dry-run —
+    nenhuma chamada de rede/SDK de envio existe neste código;
+  - 447 testes (423 → 447 nesta fase, partindo de 399 na FASE 14G), 4 rodadas
+    Claude↔Codex com revisão de diff e testes fora do sandbox em cada uma;
+    typecheck e build limpos; validação visual manual no Chromium (login,
+    Administração, wizard oficial, importação sintética "SOC cruzado",
+    dry-run) sem regressão de navegação.
+
 ## 1.15.1 — 22/07/2026
 
 - **FASE 14G — primeira publicação oficial controlada (workspace `ici-dev`, time SOC,
