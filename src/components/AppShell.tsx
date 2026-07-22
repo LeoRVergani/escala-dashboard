@@ -19,6 +19,7 @@ interface AppShellProps {
   themePreference: ThemePreference;
   onCycleTheme: () => void;
   sectionState?: Partial<Record<AppSection, AppShellSectionState>>;
+  showAdminSection?: boolean;
   identityBar?: ReactNode;
   topBar: ReactNode;
   footer?: ReactNode;
@@ -55,6 +56,7 @@ export function AppShell({
   themePreference,
   onCycleTheme,
   sectionState,
+  showAdminSection = false,
   identityBar,
   topBar,
   footer,
@@ -107,7 +109,7 @@ export function AppShell({
           </button>
         </div>
         <div className="shell-nav-items">
-          {APP_SECTIONS.map((section) => {
+          {APP_SECTIONS.filter((section) => section.key !== 'admin' || showAdminSection).map((section) => {
             const state = sectionState?.[section.key];
             const Icon = SECTION_ICONS[section.key];
             return (

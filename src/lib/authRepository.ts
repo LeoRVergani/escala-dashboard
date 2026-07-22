@@ -28,12 +28,16 @@ async function resolveDashboardUser(user: User): Promise<AuthenticatedDashboardU
   const login = normalizeLogin(raw.login ?? '');
   if (!raw.active || !login) throw new Error('Seu login ainda não está vinculado ao dashboard.');
   const adminSnapshot = await getDoc(doc(services.db, 'system_admins', user.uid));
+  const role = raw.role === 'SCHEDULE_ADMIN' ? 'SCHEDULE_ADMIN' : 'USER';
+  const teamIds = Array.isArray(raw.teamIds) ? raw.teamIds.filter((teamId): teamId is string => typeof teamId === 'string') : [];
   return {
     uid: user.uid,
     displayName: user.displayName ?? undefined,
     login,
+    role,
+    teamIds,
     isSystemAdmin: adminSnapshot.exists() && adminSnapshot.data().active === true,
-    link: { ...raw, firebaseUid: user.uid, login, active: true } as UserLink,
+    link: { ...raw, firebaseUid: user.uid, login, active: true, role, teamIds } as UserLink,
   };
 }
 

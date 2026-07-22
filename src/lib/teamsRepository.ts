@@ -3,19 +3,37 @@ import { firebaseServices } from './firebase';
 import { normalizeLogin } from './authRepository';
 import type { AuthenticatedDashboardUser, Team } from '../types';
 
+export function canManageTeamWithRole(user: AuthenticatedDashboardUser | null, teamId: string | null | undefined): boolean {
+  return Boolean(
+    user
+    && teamId
+    && (
+      user.isSystemAdmin
+      || (user.role === 'SCHEDULE_ADMIN' && user.teamIds.includes(teamId))
+    ),
+  );
+}
+
 export function canManageTeam(user: AuthenticatedDashboardUser | null, team: Team | null): boolean {
-  return Boolean(user && team && (user.isSystemAdmin || normalizeLogin(team.responsibleLogin) === user.login));
+  return Boolean(
+    user
+    && team
+    && (
+      canManageTeamWithRole(user, team.id)
+      || normalizeLogin(team.responsibleLogin) === user.login
+    ),
+  );
 }
 
 export function filterManagedTeams(user: AuthenticatedDashboardUser, teams: Team[]): Team[] {
-  return teams.filter((team) => team.active && (user.isSystemAdmin || normalizeLogin(team.responsibleLogin) === user.login));
+  return teams.filter((team) => team.active && canManageTeam(user, team));
 }
 
 export async function loadManagedTeams(user: AuthenticatedDashboardUser): Promise<Team[]> {
   const services = firebaseServices();
   if (!services) return [];
   const base = collection(services.db, 'teams');
-  const snapshot = await getDocs(user.isSystemAdmin ? query(base, where('active', '==', true)) : query(base, where('responsibleLogin', '==', user.login), where('active', '==', true)));
+  const snapshot = await getDocs(user.isSystemAdmin || user.role === 'SCHEDULE_ADMIN' ? query(base, where('active', '==', true)) : query(base, where('responsibleLogin', '==', user.login), where('active', '==', true)));
   return filterManagedTeams(user, snapshot.docs.map((item) => ({ id: item.id, ...item.data() } as Team))).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
 }
 

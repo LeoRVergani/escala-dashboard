@@ -81,6 +81,16 @@ export const StatusIcon = (props: IconProps) => base(
   props,
 );
 
+export const AdminIcon = (props: IconProps) => base(
+  <>
+    <circle cx="9" cy="8" r="3" />
+    <path d="M3.8 19c0-3.1 2.3-5.5 5.2-5.5 1.2 0 2.3.4 3.2 1.1" />
+    <path d="M17 13.5 20.5 15v2.1c0 2.2-1.4 3.8-3.5 4.7-2.1-.9-3.5-2.5-3.5-4.7V15L17 13.5Z" />
+    <path d="m15.8 17.3.8.8 1.7-1.9" />
+  </>,
+  props,
+);
+
 export const SettingsIcon = (props: IconProps) => base(
   <>
     <circle cx="12" cy="12" r="3" />
@@ -146,5 +156,6 @@ export const SECTION_ICONS = {
   demo: DemoIcon,
   official: OfficialIcon,
   status: StatusIcon,
+  admin: AdminIcon,
   settings: SettingsIcon,
 } as const;

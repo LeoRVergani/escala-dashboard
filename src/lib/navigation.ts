@@ -10,6 +10,7 @@ export type AppSection =
   | 'demo'
   | 'official'
   | 'status'
+  | 'admin'
   | 'settings';
 
 export interface AppSectionMeta {
@@ -26,6 +27,7 @@ export const APP_SECTIONS: AppSectionMeta[] = [
   { key: 'demo', label: 'Ambiente Demo', description: 'Workspace demo-v1' },
   { key: 'official', label: 'Publicação Oficial', description: 'Workspace ici-dev' },
   { key: 'status', label: 'Histórico/Status', description: 'Backend e revisões' },
+  { key: 'admin', label: 'Administração', description: 'Perfis administrativos' },
   { key: 'settings', label: 'Configurações', description: 'Preferências locais' },
 ];
 

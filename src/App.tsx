@@ -75,6 +75,7 @@ import type { ShiftSwapRequest, Team } from './types';
 import { AppShell, type AppShellSectionState } from './components/AppShell';
 import { Home, type HomeSummary } from './components/Home';
 import { OfficialPublicationWizard } from './components/OfficialPublicationWizard';
+import { AdminUsersPanel } from './components/AdminUsersPanel';
 import { LocalIdentityBar } from './components/LocalIdentityBar';
 import {
   loadStoredNavCollapsed,
@@ -1184,6 +1185,7 @@ export default function App() {
         themePreference={themePreference}
         onCycleTheme={cycleTheme}
         sectionState={sectionState}
+        showAdminSection={firebaseDashboard.user?.isSystemAdmin === true}
         identityBar={(
           <LocalIdentityBar
             identity={localIdentity.identity}
@@ -1734,6 +1736,10 @@ export default function App() {
               Atualizar status
             </button>
           </div>
+        )}
+
+        {activeSection === 'admin' && (
+          <AdminUsersPanel user={firebaseDashboard.user} teams={firebaseDashboard.teams} />
         )}
 
         {activeSection === 'settings' && (

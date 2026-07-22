@@ -5,6 +5,7 @@ import { validateOfficialCorporateLink, validateOfficialPackage } from '../domai
 import { buildOfficialPublicationPlan } from '../domain/officialPublicationPlanner.mjs';
 import { PublicationError } from '../errors.mjs';
 import { resolvePublicationStore } from '../infra/resolvePublicationStore.mjs';
+import { createVerifyCallerMiddleware, requireTeamAuthorization } from '../infra/verifyCaller.mjs';
 
 // Workspace oficial fixado no servidor (adendo FASE 14D): o cliente nunca escolhe
 // o workspace. Se o corpo da requisicao informar um workspaceId, so e aceito
@@ -14,8 +15,9 @@ const OFFICIAL_CONFIRMATION_PHRASE = 'PUBLISH OFFICIAL ici-dev';
 
 export function createOfficialPublishRouter({ getFirebaseAdmin, config, store }) {
   const router = Router();
+  const verifyCaller = createVerifyCallerMiddleware({ getFirebaseAdmin, config });
 
-  router.post('/', async (req, res, next) => {
+  router.post('/', verifyCaller, async (req, res, next) => {
     try {
       if (req.body?.workspaceId !== undefined && req.body.workspaceId !== OFFICIAL_WORKSPACE_ID) {
         throw new PublicationError('WORKSPACE_NOT_ALLOWED', 'Somente o workspace ici-dev pode ser publicado por esta rota.');
@@ -39,6 +41,7 @@ export function createOfficialPublishRouter({ getFirebaseAdmin, config, store })
       if (!corporateLinkValidation.ok) {
         throw new PublicationError(corporateLinkValidation.code, corporateLinkValidation.message);
       }
+      requireTeamAuthorization(req, req.body.corporateLink?.teamId);
 
       if (mode === 'COMMIT') {
         if (config.allowOfficialFirestoreWrite !== true) {

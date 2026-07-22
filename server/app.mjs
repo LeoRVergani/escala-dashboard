@@ -3,6 +3,7 @@ import cors from 'cors';
 import express from 'express';
 import { PublicationError } from './errors.mjs';
 import { getFirebaseAdmin as defaultGetFirebaseAdmin } from './infra/firebaseAdmin.mjs';
+import { createAdminRouter } from './routes/admin.mjs';
 import { createDemoResetRouter } from './routes/demoReset.mjs';
 import { createDemoStatusRouter } from './routes/demoStatus.mjs';
 import { createHealthRouter } from './routes/health.mjs';
@@ -63,7 +64,7 @@ export function createApp(config, overrides = {}) {
 
       callback(null, false);
     },
-    methods: ['GET', 'POST', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
   }));
 
   app.use(express.json({ limit: config.maxJsonBodyBytes }));
@@ -74,6 +75,7 @@ export function createApp(config, overrides = {}) {
   app.use('/api/publish', createPublishRouter(routeDependencies));
   app.use('/api/official/status', createOfficialStatusRouter(routeDependencies));
   app.use('/api/publish/official', createOfficialPublishRouter(routeDependencies));
+  app.use('/api/admin', createAdminRouter(routeDependencies));
 
   app.use((req, res) => {
     res.status(404).json({

@@ -41,6 +41,32 @@ type Deferred<T> = {
 
 let currentServer: TestServer | undefined;
 
+function fakeGetFirebaseAdmin() {
+  return {
+    configured: true,
+    auth: { verifyIdToken: async () => ({ uid: 'uid-system-admin', email: 'system.admin@ici.test' }) },
+    db: {
+      collection(name: string) {
+        return {
+          doc(id: string) {
+            return {
+              async get() {
+                if (name === 'system_admins' && id === 'uid-system-admin') {
+                  return { exists: true, data: () => ({ active: true, login: 'system.admin@ici.test' }) };
+                }
+                if (name === 'user_links' && id === 'uid-system-admin') {
+                  return { exists: true, data: () => ({ active: true, login: 'system.admin@ici.test', role: 'USER' }) };
+                }
+                return { exists: false, data: () => undefined };
+              },
+            };
+          },
+        };
+      },
+    },
+  };
+}
+
 function deferred<T = void>(): Deferred<T> {
   let resolve!: (value: T | PromiseLike<T>) => void;
   let reject!: (reason?: unknown) => void;
@@ -143,7 +169,7 @@ async function startTestServer(
   const config = loadConfig({
     ALLOW_OFFICIAL_FIRESTORE_WRITE: options.allowOfficialFirestoreWrite ? 'true' : 'false',
   });
-  const app = createApp(config, { store });
+  const app = createApp(config, { store, getFirebaseAdmin: fakeGetFirebaseAdmin });
   const server = http.createServer(app);
 
   try {
@@ -267,7 +293,7 @@ async function appFetch(testServer: TestServer, path: string, init?: RequestInit
 async function postOfficialPublish(testServer: TestServer, body: Record<string, unknown>) {
   return appFetch(testServer, '/api/publish/official', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer test-token' },
     body: JSON.stringify(body),
   });
 }

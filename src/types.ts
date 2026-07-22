@@ -145,15 +145,20 @@ export interface UserLink {
   firebaseUid: string;
   login: string;
   active: boolean;
+  role?: 'USER' | 'SCHEDULE_ADMIN';
   primaryTeamId?: string;
   teamIds?: string[];
   updatedAt?: unknown;
+  grantedBy?: string;
+  grantedAt?: string;
 }
 
 export interface AuthenticatedDashboardUser {
   uid: string;
   displayName?: string;
   login: string;
+  role: 'USER' | 'SCHEDULE_ADMIN';
+  teamIds: string[];
   isSystemAdmin: boolean;
   link: UserLink;
 }

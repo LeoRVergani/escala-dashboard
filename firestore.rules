@@ -7,7 +7,8 @@ service cloud.firestore {
     function login() { return link().login; }
     function systemAdmin() { return signedIn() && exists(/databases/$(database)/documents/system_admins/$(request.auth.uid)) && get(/databases/$(database)/documents/system_admins/$(request.auth.uid)).data.active == true; }
     function responsible(teamId) { return linked() && exists(/databases/$(database)/documents/teams/$(teamId)) && get(/databases/$(database)/documents/teams/$(teamId)).data.responsibleLogin == login(); }
-    function canManage(teamId) { return systemAdmin() || responsible(teamId); }
+    function scheduleAdmin(teamId) { return linked() && link().role == 'SCHEDULE_ADMIN' && link().teamIds is list && teamId in link().teamIds; }
+    function canManage(teamId) { return systemAdmin() || responsible(teamId) || scheduleAdmin(teamId); }
     function validTeamCreate(teamId) { return request.resource.data.id == teamId && request.resource.data.teamId == teamId && request.resource.data.responsibleLogin is string; }
     function validScopedCreate() { return request.resource.data.teamId is string && canManage(request.resource.data.teamId); }
     function teamUnchanged() { return request.resource.data.teamId == resource.data.teamId; }
@@ -60,6 +61,8 @@ service cloud.firestore {
     }
     match /system_admins/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || systemAdmin());
+      // Firestore Rules nao conseguem contar de forma segura quantos system_admins
+      // ativos existem; a protecao do ultimo administrador fica no backend nesta fase.
       allow write: if systemAdmin();
     }
     match /{document=**} { allow read, write: if false; }

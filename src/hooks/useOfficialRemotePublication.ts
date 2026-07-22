@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { DemoPublicationPackage } from '../lib/demoWorkspace/dto';
 import { sha256Hex } from '../lib/demoWorkspace/validation';
+import { firebaseServices } from '../lib/firebase';
 import type { OfficialCorporateLink } from '../lib/officialWorkspace/retarget';
 import { OFFICIAL_WORKSPACE_ID } from '../lib/officialWorkspace/retarget';
 
@@ -78,7 +79,12 @@ async function readApiError(response: Response): Promise<OfficialRemoteError> {
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<ApiResult<T>> {
   try {
-    const response = await fetch(endpoint(path), init);
+    const headers = new Headers(init?.headers);
+    const idToken = await firebaseServices()?.auth.currentUser?.getIdToken();
+    if (idToken) {
+      headers.set('Authorization', `Bearer ${idToken}`);
+    }
+    const response = await fetch(endpoint(path), { ...init, headers });
     if (!response.ok) {
       return { ok: false, error: await readApiError(response) };
     }

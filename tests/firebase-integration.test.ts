@@ -27,7 +27,7 @@ vi.mock('../src/lib/membersRepository', () => ({
   upsertMembers: vi.fn(() => Promise.resolve()),
 }));
 
-const user = (login = 'responsavel.login', admin = false): AuthenticatedDashboardUser => ({ uid: `uid-${login}`, login, isSystemAdmin: admin, link: { firebaseUid: `uid-${login}`, login, active: true } });
+const user = (login = 'responsavel.login', admin = false, teamIds: string[] = [], role: AuthenticatedDashboardUser['role'] = 'USER'): AuthenticatedDashboardUser => ({ uid: `uid-${login}`, login, role, teamIds, isSystemAdmin: admin, link: { firebaseUid: `uid-${login}`, login, active: true, role, teamIds } });
 const team = (id: string, responsibleLogin = 'responsavel.login', scheduleKind: Team['scheduleKind'] = 'REGULAR'): Team => ({ id, code: id.toUpperCase(), name: id, responsibleLogin, scheduleKind, active: true, allowedImportLayouts: scheduleKind === 'ON_CALL' ? ['oncall'] : ['soc-daily', 'soc-escalistas', 'n1', 'matrix'] });
 const regularState = (): ScheduleState => ({ monthKey: { year: 2026, month: 7 }, dates: ['2026-06-25', '2026-06-26'], technicians: [{ id: 'login', login: ' Tecnico.Login ' }, { id: 'name', name: 'Pessoa Sem Login' }], cells: { login: { 1: { shift: 'manha' } }, name: { 2: { shift: 'ferias' } } }, visualGrouping: 'operational-shift', sourceLayout: 'soc-daily' });
 
@@ -36,6 +36,7 @@ describe('autorização por responsibleLogin', () => {
   it('o mesmo responsável administra três times', () => expect(filterManagedTeams(user(), [team('soc'), team('seguranca'), team('plantao', 'responsavel.login', 'ON_CALL')]).map((item) => item.id)).toEqual(['soc', 'seguranca', 'plantao']));
   it('usuário vê somente os próprios times', () => expect(filterManagedTeams(user(), [team('soc'), team('n1', 'outro.login')]).map((item) => item.id)).toEqual(['soc']));
   it('system admin vê todos os times ativos', () => expect(filterManagedTeams(user('admin.login', true), [team('soc'), team('n1', 'outro.login')])).toHaveLength(2));
+  it('schedule admin vê time atribuído por teamIds', () => expect(filterManagedTeams(user('admin.escala', false, ['n1'], 'SCHEDULE_ADMIN'), [team('soc'), team('n1', 'outro.login')]).map((item) => item.id)).toEqual(['n1']));
   it('bloqueia time não autorizado', () => expect(canManageTeam(user(), team('n1', 'outro.login'))).toBe(false));
 });
 

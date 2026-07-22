@@ -1,4 +1,5 @@
 import { applicationDefault, getApp, getApps, initializeApp } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 
 let cachedAdmin;
@@ -23,7 +24,7 @@ export function getFirebaseAdmin(config) {
           projectId: config.firebaseProjectId,
         });
 
-    cachedAdmin = { configured: true, db: getFirestore(app) };
+    cachedAdmin = { configured: true, app, auth: getAuth(app), db: getFirestore(app) };
     return cachedAdmin;
   } catch (err) {
     console.error('Firebase Admin não pôde ser inicializado', err?.message);

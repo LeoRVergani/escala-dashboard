@@ -1680,6 +1680,37 @@ details.block li { margin: 2px 0; }
 .status-card dd { margin: 0; font-weight: 700; }
 .settings-toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 
+/* ---------- Administração ---------- */
+
+.admin-users-panel { display: flex; flex-direction: column; gap: 16px; }
+.admin-users-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); gap: 14px; align-items: start; }
+.admin-users-list-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.admin-users-list-head h3,
+.admin-users-form h3 { margin: 0; font-size: 14px; }
+.admin-users-table-wrap { overflow-x: auto; }
+.admin-users-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.admin-users-table th,
+.admin-users-table td { border-bottom: 1px solid var(--line); padding: 8px; text-align: left; vertical-align: top; }
+.admin-users-table th { color: var(--ink-soft); font-size: 11px; font-weight: 800; }
+.admin-users-form { display: flex; flex-direction: column; gap: 10px; }
+.admin-users-form label { display: grid; gap: 4px; font-size: 12px; font-weight: 700; }
+.admin-users-form input,
+.admin-users-form select {
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  padding: 8px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.admin-users-team-fieldset { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px; display: grid; gap: 8px; }
+.admin-users-team-fieldset legend { padding: 0 4px; color: var(--ink-soft); font-size: 11px; font-weight: 800; }
+.admin-users-team-fieldset:disabled { opacity: 0.55; }
+.admin-users-error { margin: 0; color: var(--danger); font-size: 12px; font-weight: 800; }
+
+@media (max-width: 900px) {
+  .admin-users-layout { grid-template-columns: 1fr; }
+}
+
 /* ---------- Identidade local (chefe do setor + time) ---------- */
 
 .local-identity-bar {
