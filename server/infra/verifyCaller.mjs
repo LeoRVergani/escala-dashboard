@@ -74,6 +74,24 @@ export function requireTeamAuthorization(req, teamId) {
   }
 }
 
+export function requirePackageTeamAuthorization(req, teamIds) {
+  const caller = req.caller;
+  if (caller?.isSystemAdmin) return;
+  if (caller?.role !== 'SCHEDULE_ADMIN') {
+    throw new PublicationError('FORBIDDEN_ROLE', 'Conta sem papel administrativo para publicar escala oficial.');
+  }
+
+  const allowedTeamIds = new Set(caller.teamIds ?? []);
+  const forbiddenTeamId = [...teamIds].find((teamId) => !allowedTeamIds.has(teamId));
+  if (forbiddenTeamId) {
+    throw new PublicationError(
+      'FORBIDDEN_TEAM_IN_PACKAGE',
+      `Conta sem permissão para publicar dados do time ${forbiddenTeamId}.`,
+      { details: { teamId: forbiddenTeamId } },
+    );
+  }
+}
+
 export function requireSystemAdmin(req) {
   if (req.caller?.isSystemAdmin) return;
   throw new PublicationError('FORBIDDEN_ROLE', 'Somente administradores do sistema podem acessar esta área.');

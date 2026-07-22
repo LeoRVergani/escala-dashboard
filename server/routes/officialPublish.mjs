@@ -5,13 +5,134 @@ import { validateOfficialCorporateLink, validateOfficialPackage } from '../domai
 import { buildOfficialPublicationPlan } from '../domain/officialPublicationPlanner.mjs';
 import { PublicationError } from '../errors.mjs';
 import { resolvePublicationStore } from '../infra/resolvePublicationStore.mjs';
-import { createVerifyCallerMiddleware, requireTeamAuthorization } from '../infra/verifyCaller.mjs';
+import {
+  createVerifyCallerMiddleware,
+  requirePackageTeamAuthorization,
+  requireTeamAuthorization,
+} from '../infra/verifyCaller.mjs';
 
 // Workspace oficial fixado no servidor (adendo FASE 14D): o cliente nunca escolhe
 // o workspace. Se o corpo da requisicao informar um workspaceId, so e aceito
 // quando for exatamente este - qualquer outro valor e rejeitado, nunca usado.
 const OFFICIAL_WORKSPACE_ID = 'ici-dev';
 const OFFICIAL_CONFIRMATION_PHRASE = 'PUBLISH OFFICIAL ici-dev';
+const ASSIGNMENT_TYPES = ['WORK_SHIFT', 'OFF', 'VACATION', 'ABSENCE', 'TRAINING', 'OTHER'];
+
+function isRecord(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function parsePackageForAuthorization(packageRaw) {
+  try {
+    return JSON.parse(packageRaw);
+  } catch {
+    throw new PublicationError('INVALID_PACKAGE', 'O pacote enviado não é um JSON válido.');
+  }
+}
+
+function referencedTeamIds(pkg) {
+  const teamIds = new Set();
+  const add = (teamId) => {
+    if (typeof teamId === 'string' && teamId.trim() !== '') {
+      teamIds.add(teamId);
+    }
+  };
+
+  if (Array.isArray(pkg?.teams)) {
+    pkg.teams.forEach((item) => { if (isRecord(item)) add(item.id); });
+  }
+  if (Array.isArray(pkg?.schedulePeriods)) {
+    pkg.schedulePeriods.forEach((item) => { if (isRecord(item)) add(item.teamId); });
+  }
+  if (Array.isArray(pkg?.scheduleAssignments)) {
+    pkg.scheduleAssignments.forEach((item) => { if (isRecord(item)) add(item.teamId); });
+  }
+
+  return teamIds;
+}
+
+function periodSummary(pkg) {
+  const periods = pkg.schedulePeriods
+    .map((item) => ({ startDate: item.startDate ?? null, endDate: item.endDate ?? null }));
+
+  if (periods.length === 0) return null;
+  if (periods.length === 1) return periods[0];
+  return periods;
+}
+
+function daysBetweenInclusive(startDate, endDate) {
+  if (typeof startDate !== 'string' || typeof endDate !== 'string') return null;
+  const start = new Date(`${startDate}T00:00:00.000Z`);
+  const end = new Date(`${endDate}T00:00:00.000Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return null;
+  return Math.floor((end.getTime() - start.getTime()) / 86_400_000) + 1;
+}
+
+function expectedAssignmentDays(pkg) {
+  const periodDays = pkg.schedulePeriods
+    .map((period) => daysBetweenInclusive(period.startDate, period.endDate))
+    .filter((days) => Number.isInteger(days));
+
+  if (periodDays.length !== pkg.schedulePeriods.length) return null;
+  return periodDays.reduce((total, days) => total + days, 0);
+}
+
+function dryRunDetails(pkg) {
+  const assignmentCountsByType = Object.fromEntries(ASSIGNMENT_TYPES.map((type) => [type, 0]));
+  const assignmentCountsByShift = {};
+  const offDaysByMember = {};
+  const assignmentCountsByMember = {};
+
+  pkg.members
+    .filter((member) => typeof member.id === 'string')
+    .forEach((member) => {
+      offDaysByMember[member.id] = 0;
+      assignmentCountsByMember[member.id] = 0;
+    });
+
+  pkg.scheduleAssignments.forEach((assignment) => {
+    const type = assignment.assignmentType;
+    if (typeof type === 'string') {
+      assignmentCountsByType[type] = (assignmentCountsByType[type] ?? 0) + 1;
+    }
+
+    if (type === 'WORK_SHIFT' && typeof assignment.shiftName === 'string' && assignment.shiftName.trim() !== '') {
+      assignmentCountsByShift[assignment.shiftName] = (assignmentCountsByShift[assignment.shiftName] ?? 0) + 1;
+    }
+
+    if (typeof assignment.memberId === 'string') {
+      assignmentCountsByMember[assignment.memberId] = (assignmentCountsByMember[assignment.memberId] ?? 0) + 1;
+      if (type === 'OFF' || type === 'VACATION') {
+        offDaysByMember[assignment.memberId] = (offDaysByMember[assignment.memberId] ?? 0) + 1;
+      }
+    }
+  });
+
+  const expectedDays = expectedAssignmentDays(pkg);
+  const warnings = expectedDays == null ? [] : pkg.members
+    .filter((member) => typeof member.id === 'string')
+    .map((member) => ({
+      memberId: member.id,
+      assignmentCount: assignmentCountsByMember[member.id] ?? 0,
+      expectedDays,
+    }))
+    .filter((item) => item.assignmentCount !== item.expectedDays)
+    .map((item) => ({
+      code: 'ASSIGNMENT_COUNT_MISMATCH',
+      memberId: item.memberId,
+      assignmentCount: item.assignmentCount,
+      expectedDays: item.expectedDays,
+      message: `Membro ${item.memberId} tem ${item.assignmentCount} atribuições para ${item.expectedDays} dias esperados no pacote.`,
+    }));
+
+  return {
+    period: periodSummary(pkg),
+    assignmentCountsByType,
+    assignmentCountsByShift,
+    offDaysByMember,
+    warnings,
+  };
+}
 
 export function createOfficialPublishRouter({ getFirebaseAdmin, config, store }) {
   const router = Router();
@@ -28,6 +149,13 @@ export function createOfficialPublishRouter({ getFirebaseAdmin, config, store })
         throw new PublicationError('INVALID_PACKAGE', 'Modo de publicação inválido. Use DRY_RUN ou COMMIT.');
       }
 
+      if (req.body?.corporateLink?.teamId != null) {
+        requireTeamAuthorization(req, req.body.corporateLink.teamId);
+      }
+
+      const packageForAuthorization = parsePackageForAuthorization(req.body?.packageRaw);
+      requirePackageTeamAuthorization(req, referencedTeamIds(packageForAuthorization));
+
       const validation = validateOfficialPackage({
         packageRaw: req.body.packageRaw,
         manifestRaw: req.body.manifestRaw,
@@ -41,7 +169,6 @@ export function createOfficialPublishRouter({ getFirebaseAdmin, config, store })
       if (!corporateLinkValidation.ok) {
         throw new PublicationError(corporateLinkValidation.code, corporateLinkValidation.message);
       }
-      requireTeamAuthorization(req, req.body.corporateLink?.teamId);
 
       if (mode === 'COMMIT') {
         if (config.allowOfficialFirestoreWrite !== true) {
@@ -155,6 +282,7 @@ export function createOfficialPublishRouter({ getFirebaseAdmin, config, store })
         changes: { entityCounts: plan.counts },
         checksumStatus: 'MATCH',
         writesPerformed: 0,
+        ...dryRunDetails(validation.package),
       });
     } catch (err) {
       next(err);

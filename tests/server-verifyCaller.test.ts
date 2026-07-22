@@ -32,8 +32,7 @@ function basePackage() {
   };
 }
 
-function publishBody() {
-  const pkg = basePackage();
+function publishBody(overrides: Record<string, unknown> = {}, pkg = basePackage()) {
   const packageRaw = JSON.stringify(pkg);
   return {
     workspaceId: 'ici-dev',
@@ -47,25 +46,32 @@ function publishBody() {
       counts: Object.fromEntries(ARRAY_KEYS.map((key) => [key, pkg[key].length])),
       schemaVersion: 1,
     }),
+    ...overrides,
   };
 }
 
-function appFor(data: Parameters<typeof createFakeFirebaseAdmin>[0]) {
+function packageWithUnauthorizedTeam() {
+  const pkg = basePackage();
+  pkg.teams.push({ id: 'team-fora-do-escopo', workspaceId: 'ici-dev', schemaVersion: 1 });
+  return pkg;
+}
+
+function appFor(data: Parameters<typeof createFakeFirebaseAdmin>[0], env: Record<string, string> = {}) {
   const fake = createFakeFirebaseAdmin(data);
-  return createApp(loadConfig({}), {
+  return createApp(loadConfig(env), {
     store: createInMemoryPublicationStore(),
     getFirebaseAdmin: fake.getFirebaseAdmin,
   });
 }
 
-async function postOfficial(app: ReturnType<typeof createApp>, token?: string) {
+async function postOfficial(app: ReturnType<typeof createApp>, token?: string, body = publishBody()) {
   return dispatchExpress(app, '/api/publish/official', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify(publishBody()),
+    body: JSON.stringify(body),
   });
 }
 
@@ -101,6 +107,21 @@ describe('verifyCaller middleware', () => {
     expect(result.body.error.code).toBe('FORBIDDEN_TEAM');
   });
 
+  it.each(['DRY_RUN', 'COMMIT'])('SCHEDULE_ADMIN rejeita pacote %s com time fora do conjunto autorizado', async (mode) => {
+    const app = appFor({
+      tokens: { valid: { uid: 'uid-schedule' } },
+      data: { user_links: { 'uid-schedule': { active: true, login: 'schedule@ici.test', role: 'SCHEDULE_ADMIN', teamIds: ['team-ici'] } } },
+    });
+
+    const result = await responseJson(await postOfficial(app, 'valid', publishBody({
+      mode,
+      confirmation: mode === 'COMMIT' ? 'PUBLISH OFFICIAL ici-dev' : '',
+    }, packageWithUnauthorizedTeam())));
+
+    expect(result.status).toBe(403);
+    expect(result.body.error.code).toBe('FORBIDDEN_TEAM_IN_PACKAGE');
+  });
+
   it('SCHEDULE_ADMIN do time certo passa', async () => {
     const app = appFor({
       tokens: { valid: { uid: 'uid-schedule' } },
@@ -116,8 +137,21 @@ describe('verifyCaller middleware', () => {
       tokens: { valid: { uid: 'uid-system' } },
       data: { system_admins: { 'uid-system': { active: true, login: 'system@ici.test' } } },
     });
-    const result = await responseJson(await postOfficial(app, 'valid'));
+    const result = await responseJson(await postOfficial(app, 'valid', publishBody({}, packageWithUnauthorizedTeam())));
     expect(result.status).toBe(200);
     expect(result.body.status).toBe('VALIDATED');
+  });
+
+  it('SYSTEM_ADMIN em COMMIT com qualquer time avanca ate a trava de escrita oficial', async () => {
+    const app = appFor({
+      tokens: { valid: { uid: 'uid-system' } },
+      data: { system_admins: { 'uid-system': { active: true, login: 'system@ici.test' } } },
+    }, { ALLOW_OFFICIAL_FIRESTORE_WRITE: 'false' });
+    const result = await responseJson(await postOfficial(app, 'valid', publishBody({
+      mode: 'COMMIT',
+      confirmation: 'PUBLISH OFFICIAL ici-dev',
+    }, packageWithUnauthorizedTeam())));
+    expect(result.status).toBe(403);
+    expect(result.body.error.code).toBe('OFFICIAL_WRITE_DISABLED');
   });
 });

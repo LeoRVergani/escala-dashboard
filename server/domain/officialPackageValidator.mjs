@@ -95,6 +95,28 @@ function hasWorkWithoutLocatedShift(pkg) {
   ));
 }
 
+function duplicateAssignment(pkg) {
+  const seen = new Set();
+  return pkg.scheduleAssignments.find((item) => {
+    if (typeof item.memberId !== 'string' || typeof item.date !== 'string') return false;
+    const key = `${item.memberId}\u0000${item.date}`;
+    if (seen.has(key)) return true;
+    seen.add(key);
+    return false;
+  });
+}
+
+function assignmentDateOutOfPeriod(pkg) {
+  const periodsById = new Map(pkg.schedulePeriods.map((item) => [item.id, item]));
+
+  return pkg.scheduleAssignments.find((item) => {
+    if (typeof item.date !== 'string') return false;
+    const period = periodsById.get(item.periodId);
+    if (!period || typeof period.startDate !== 'string' || typeof period.endDate !== 'string') return false;
+    return item.date < period.startDate || item.date > period.endDate;
+  });
+}
+
 export function validateOfficialPackage({ packageRaw, manifestRaw }) {
   let parsedPackage;
   let parsedManifest;
@@ -147,6 +169,24 @@ export function validateOfficialPackage({ packageRaw, manifestRaw }) {
       ok: false,
       code: 'INVALID_PACKAGE',
       message: 'O pacote de publicação oficial tem contagem divergente em relação ao manifesto.',
+    };
+  }
+
+  const duplicatedAssignment = duplicateAssignment(parsedPackage);
+  if (duplicatedAssignment) {
+    return {
+      ok: false,
+      code: 'DUPLICATE_ASSIGNMENT',
+      message: `O pacote contém atribuição duplicada para memberId ${duplicatedAssignment.memberId} na data ${duplicatedAssignment.date}.`,
+    };
+  }
+
+  const outOfPeriodAssignment = assignmentDateOutOfPeriod(parsedPackage);
+  if (outOfPeriodAssignment) {
+    return {
+      ok: false,
+      code: 'ASSIGNMENT_DATE_OUT_OF_PERIOD',
+      message: `A atribuição ${outOfPeriodAssignment.id ?? ''} de memberId ${outOfPeriodAssignment.memberId} usa a data ${outOfPeriodAssignment.date} fora do período ${outOfPeriodAssignment.periodId}.`,
     };
   }
 

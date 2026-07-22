@@ -112,6 +112,70 @@ function basePackage(): OfficialPackage {
   };
 }
 
+function packageWithDryRunSummary(): OfficialPackage {
+  const pkg = basePackage();
+  pkg.schedulePeriods[0] = {
+    ...pkg.schedulePeriods[0],
+    startDate: '2026-07-01',
+    endDate: '2026-07-03',
+  };
+  pkg.scheduleAssignments = [
+    {
+      id: 'assignment-work-morning',
+      workspaceId: 'ici-dev',
+      periodId: 'period-ici',
+      teamId: 'team-ici',
+      memberId: 'member-ici-analista',
+      date: '2026-07-01',
+      assignmentType: 'WORK_SHIFT',
+      shiftName: 'Morning',
+      schemaVersion: 1,
+    },
+    {
+      id: 'assignment-off',
+      workspaceId: 'ici-dev',
+      periodId: 'period-ici',
+      teamId: 'team-ici',
+      memberId: 'member-ici-analista',
+      date: '2026-07-02',
+      assignmentType: 'OFF',
+      schemaVersion: 1,
+    },
+    {
+      id: 'assignment-vacation',
+      workspaceId: 'ici-dev',
+      periodId: 'period-ici',
+      teamId: 'team-ici',
+      memberId: 'member-ici-analista',
+      date: '2026-07-03',
+      assignmentType: 'VACATION',
+      schemaVersion: 1,
+    },
+    {
+      id: 'assignment-work-night',
+      workspaceId: 'ici-dev',
+      periodId: 'period-ici',
+      teamId: 'team-ici',
+      memberId: 'member-ici-lvergani',
+      date: '2026-07-01',
+      assignmentType: 'WORK_SHIFT',
+      shiftName: 'Night',
+      schemaVersion: 1,
+    },
+    {
+      id: 'assignment-training',
+      workspaceId: 'ici-dev',
+      periodId: 'period-ici',
+      teamId: 'team-ici',
+      memberId: 'member-ici-lvergani',
+      date: '2026-07-02',
+      assignmentType: 'TRAINING',
+      schemaVersion: 1,
+    },
+  ];
+  return pkg;
+}
+
 function manifestFor(packageRaw: string, overrides: Record<string, unknown> = {}) {
   const pkg = JSON.parse(packageRaw) as OfficialPackage;
   return JSON.stringify({
@@ -397,6 +461,43 @@ describe('POST /api/publish/official DRY_RUN', () => {
       exists: false,
       publicationRevision: 0,
     });
+  });
+
+  it('retorna resumo enriquecido do pacote no DRY_RUN', async () => {
+    const store = createInMemoryPublicationStore();
+    const testServer = await startTestServer(store);
+    const pkg = packageWithDryRunSummary();
+    const packageRaw = JSON.stringify(pkg);
+
+    const response = await postOfficialPublish(testServer, publishBody({
+      expectedActiveRevision: 0,
+      packageRaw,
+      manifestRaw: manifestFor(packageRaw),
+    }));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.period).toEqual({ startDate: '2026-07-01', endDate: '2026-07-03' });
+    expect(body.assignmentCountsByType).toEqual({
+      WORK_SHIFT: 2,
+      OFF: 1,
+      VACATION: 1,
+      ABSENCE: 0,
+      TRAINING: 1,
+      OTHER: 0,
+    });
+    expect(body.assignmentCountsByShift).toEqual({ Morning: 1, Night: 1 });
+    expect(body.offDaysByMember).toEqual({
+      'member-ici-analista': 2,
+      'member-ici-lvergani': 0,
+    });
+    expect(body.warnings).toEqual([{
+      code: 'ASSIGNMENT_COUNT_MISMATCH',
+      memberId: 'member-ici-lvergani',
+      assignmentCount: 2,
+      expectedDays: 3,
+      message: 'Membro member-ici-lvergani tem 2 atribuições para 3 dias esperados no pacote.',
+    }]);
   });
 
   it('bloqueia mode COMMIT quando a escrita oficial nao esta habilitada', async () => {

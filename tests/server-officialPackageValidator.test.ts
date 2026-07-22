@@ -157,6 +157,34 @@ describe('validateOfficialPackage', () => {
     expect(validate(pkg)).toMatchObject({ ok: false, code: 'SCHEDULE_WORK_SHIFT_NOT_LOCATED' });
   });
 
+  it('rejeita duas atribuicoes com o mesmo memberId e date', () => {
+    const pkg = basePackage();
+    pkg.schedulePeriods[0].startDate = '2026-07-01';
+    pkg.schedulePeriods[0].endDate = '2026-07-31';
+    pkg.scheduleAssignments[0].date = '2026-07-10';
+    pkg.scheduleAssignments.push({
+      ...pkg.scheduleAssignments[0],
+      id: 'assignment-ici-duplicada',
+    });
+
+    const result = validate(pkg);
+
+    expect(result).toMatchObject({ ok: false, code: 'DUPLICATE_ASSIGNMENT' });
+    if (!result.ok) {
+      expect(result.message).toContain('member-ici-analista');
+      expect(result.message).toContain('2026-07-10');
+    }
+  });
+
+  it('rejeita atribuicao com data fora do periodo referenciado', () => {
+    const pkg = basePackage();
+    pkg.schedulePeriods[0].startDate = '2026-07-01';
+    pkg.schedulePeriods[0].endDate = '2026-07-31';
+    pkg.scheduleAssignments[0].date = '2026-08-01';
+
+    expect(validate(pkg)).toMatchObject({ ok: false, code: 'ASSIGNMENT_DATE_OUT_OF_PERIOD' });
+  });
+
   it('rejeita efeitos externos ou notificacoes habilitados', () => {
     const pkg = basePackage();
     pkg.workspace.externalEffectsAllowed = true;

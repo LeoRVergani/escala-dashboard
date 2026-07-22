@@ -14,4 +14,8 @@ export function createVerifyCallerMiddleware(deps: {
   config?: unknown;
 }): RequestHandler;
 export function requireTeamAuthorization(req: { caller?: VerifiedCaller }, teamId: string | null | undefined): void;
+export function requirePackageTeamAuthorization(
+  req: { caller?: VerifiedCaller },
+  teamIds: Iterable<string>,
+): void;
 export function requireSystemAdmin(req: { caller?: VerifiedCaller }): void;
