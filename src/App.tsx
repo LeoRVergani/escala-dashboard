@@ -61,6 +61,11 @@ import { useOfficialRemotePublication, type OfficialValidationResult } from './h
 import type { DemoWorkspaceDiff } from './lib/demoWorkspace/diff';
 import type { DemoPublicationPackage } from './lib/demoWorkspace/dto';
 import { eligibleOfficialMembers, toOfficialPackage, type OfficialCorporateLink } from './lib/officialWorkspace/retarget';
+import {
+  buildOfficialPackageFromSchedule,
+  type OfficialImportMemberInput,
+  type OfficialImportTeamInput,
+} from './lib/officialWorkspace/buildFromSchedule';
 import { signInWithMicrosoft, signOutDashboard } from './lib/authRepository';
 import { buildPublicationPreview, type PublicationPreview } from './lib/publicationPreview';
 import { publishStructuredSchedule, type PublicationMode } from './lib/schedulePublishRepository';
@@ -88,6 +93,8 @@ interface PendingImport {
   analysis: WorkbookAnalysis;
 }
 
+type OfficialSource = 'none' | 'import' | 'dashboard' | 'demo';
+
 type Clipboard =
   | { kind: 'day'; values: Record<string, CellValue | undefined> }
   | { kind: 'week'; values: Record<string, (CellValue | undefined)[]> }
@@ -112,6 +119,26 @@ function scheduleTypeLabel(state: ScheduleState): string {
   if (state.serviceDeskN1) return 'Service Desk N1 — Escala 6x1';
   if (state.visualGrouping === 'operational-shift') return 'SOC/NOC — Escala 6x1';
   return 'Escala';
+}
+
+function officialTeamFromSchedule(state: ScheduleState): OfficialImportTeamInput {
+  if (state.viewType === 'oncall') {
+    return { name: 'Plantão COSI', hierarchy: 'PLANTAO_COSI' };
+  }
+  if (state.serviceDeskN1) {
+    return { name: 'Service Desk N1', hierarchy: 'SERVICE_DESK_N1' };
+  }
+  return { name: 'SOC/NOC', hierarchy: 'SOC_NOC' };
+}
+
+function officialMembersFromSchedule(state: ScheduleState): OfficialImportMemberInput[] {
+  return state.technicians.map((technician) => {
+    const displayName = technician.name?.trim() || technician.login?.trim() || technician.id;
+    return {
+      displayName,
+      login: technician.login?.trim() || displayName,
+    };
+  });
 }
 
 /**
@@ -168,6 +195,7 @@ export default function App() {
   const [officialPublishResult, setOfficialPublishResult] = useState<{ revision: number } | null>(null);
   const [n1Layer, setN1Layer] = useState<ServiceDeskN1Layer>('principal');
   const [pending, setPending] = useState<PendingImport | null>(null);
+  const [officialPending, setOfficialPending] = useState<PendingImport | null>(null);
   const [selection, setSelection] = useState<Set<CellKey>>(new Set());
   const [clipboard, setClipboard] = useState<Clipboard>(null);
   const [toast, setToast] = useState<string | null>(null);
@@ -177,6 +205,7 @@ export default function App() {
   const [testDriveAvailable, setTestDriveAvailable] = useState(() => loadTestDriveSession() !== null);
   const [socCompact, setSocCompact] = useState(() => localStorage.getItem('escala-dashboard:soc-compact') === 'true');
   const fileInput = useRef<HTMLInputElement>(null);
+  const officialFileInput = useRef<HTMLInputElement>(null);
   const toastTimer = useRef<number>();
   const conflictPanelRef = useRef<HTMLElement>(null);
   const [plannerFocus, setPlannerFocus] = useState<{ technicianId: string; day: number } | null>(null);
@@ -188,6 +217,8 @@ export default function App() {
   const [showDemoPublishDialog, setShowDemoPublishDialog] = useState(false);
   const [showDemoRemoteResetDialog, setShowDemoRemoteResetDialog] = useState(false);
   const [officialCorporateLink, setOfficialCorporateLink] = useState<Partial<OfficialCorporateLink>>({});
+  const [officialSource, setOfficialSource] = useState<OfficialSource>('none');
+  const [officialBuiltPackage, setOfficialBuiltPackage] = useState<DemoPublicationPackage | null>(null);
   const [showOfficialPublishDialog, setShowOfficialPublishDialog] = useState(false);
   // Snapshot congelado no momento da validação: o modal de confirmação e o publish() de fato
   // enviado usam SEMPRE estes valores, nunca o estado "vivo" de demoWorkspace/diff - evita que
@@ -206,6 +237,7 @@ export default function App() {
   } | null>(null);
   const [firebaseBusy, setFirebaseBusy] = useState(false);
   const [templateWizardMode, setTemplateWizardMode] = useState<'empty' | 'demo' | null>(null);
+  const [officialTemplateWizardOpen, setOfficialTemplateWizardOpen] = useState(false);
   const demoWorkspaceState = demoWorkspace.state;
 
   const notify = useCallback((msg: string) => {
@@ -296,13 +328,12 @@ export default function App() {
     return diffDemoPackages(demoWorkspaceState.baselinePackage, demoWorkspaceState.draftPackage);
   }, [demoWorkspaceState]);
 
-  // Publicação Oficial reaproveita o mesmo pacote já carregado pelo fluxo de importação Demo
-  // (mesmo parser/adapter) só retitulando workspaceId para ici-dev - não é um pipeline de
-  // importação separado. Ver docs/spec/64-ESCALAICI-DASHBOARD-PUBLICACAO-OFICIAL.md.
-  const officialPackage = useMemo(
+  const officialDemoPackage = useMemo(
     () => (demoWorkspaceState ? toOfficialPackage(demoWorkspaceState.draftPackage) : null),
     [demoWorkspaceState],
   );
+
+  const officialPackage = officialSource === 'demo' ? officialDemoPackage : officialBuiltPackage;
 
   const resetDemoSchedule = useCallback((teamId: string): boolean => {
     const current = demoWorkspace.state;
@@ -450,6 +481,32 @@ export default function App() {
     [notify],
   );
 
+  const applyOfficialScheduleSource = useCallback((state: ScheduleState, source: Exclude<OfficialSource, 'none' | 'demo'>) => {
+    const pkg = buildOfficialPackageFromSchedule(
+      state,
+      officialTeamFromSchedule(state),
+      officialMembersFromSchedule(state),
+    );
+    setOfficialBuiltPackage(pkg);
+    setOfficialSource(source);
+    setOfficialCorporateLink({});
+    setOfficialPublishResult(null);
+  }, []);
+
+  const openOfficialFile = useCallback(
+    async (file: File) => {
+      try {
+        const buf = await file.arrayBuffer();
+        const wb = readWorkbook(buf);
+        const analysis = analyzeWorkbook(wb, file.name);
+        setOfficialPending({ wb, analysis });
+      } catch (err) {
+        notify(`Não foi possível ler “${file.name}”: ${(err as Error).message}`);
+      }
+    },
+    [notify],
+  );
+
   const confirmImport = useCallback(
     (optionKey: string) => {
       if (!pending) return;
@@ -477,6 +534,35 @@ export default function App() {
     },
     [pending, history, notify, firebaseDashboard.selectedTeam, navigate],
   );
+
+  const confirmOfficialImport = useCallback(
+    (optionKey: string) => {
+      if (!officialPending) return;
+      try {
+        const option = officialPending.analysis.options.find((item) => item.key === optionKey);
+        const result = buildSchedule(officialPending.wb, officialPending.analysis, optionKey);
+        applyOfficialScheduleSource(
+          { ...result.state, sourceFileName: officialPending.analysis.fileName, sourceSheet: option?.sheetName, sourceLayout: option?.layout },
+          'import',
+        );
+        setOfficialPending(null);
+        notify(`Pacote oficial preparado a partir da importação: ${result.state.technicians.length} membro(s).`);
+      } catch (err) {
+        notify(`Falha na importação oficial: ${(err as Error).message}`);
+      }
+    },
+    [officialPending, applyOfficialScheduleSource, notify],
+  );
+
+  const selectOfficialDemoPackage = useCallback(() => {
+    setOfficialSource('demo');
+    setOfficialBuiltPackage(null);
+    setOfficialCorporateLink({});
+    setOfficialPublishResult(null);
+    if (!demoWorkspaceState) {
+      notify('Carregue o Ambiente Demo antes de selecionar o pacote bloqueado.');
+    }
+  }, [demoWorkspaceState, notify]);
 
   const openPublication = useCallback(async () => {
     if (!schedule || !firebaseDashboard.user || !firebaseDashboard.selectedTeam) return;
@@ -1076,6 +1162,17 @@ export default function App() {
           e.target.value = '';
         }}
       />
+      <input
+        ref={officialFileInput}
+        type="file"
+        accept=".xls,.xlsx,.xlsm"
+        hidden
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void openOfficialFile(f);
+          e.target.value = '';
+        }}
+      />
 
       <AppShell
         activeSection={activeSection}
@@ -1584,6 +1681,8 @@ export default function App() {
         {activeSection === 'official' && (
           <OfficialPublicationWizard
             officialPackage={officialPackage}
+            officialSource={officialSource}
+            demoPackageAvailable={Boolean(officialDemoPackage)}
             corporateLink={officialCorporateLink}
             onCorporateLinkChange={setOfficialCorporateLink}
             backendStatus={officialRemotePublication.backendStatus}
@@ -1594,6 +1693,9 @@ export default function App() {
             onValidate={() => void validateOfficialPublication()}
             onPublishClick={() => void openOfficialPublishDialog()}
             publishResult={officialPublishResult}
+            onStartImport={() => officialFileInput.current?.click()}
+            onStartEmptySchedule={() => setOfficialTemplateWizardOpen(true)}
+            onSelectDemoPackage={selectOfficialDemoPackage}
             onGoToDemo={() => navigate('demo')}
           />
         )}
@@ -1699,6 +1801,26 @@ export default function App() {
           analysis={pending.analysis}
           onConfirm={confirmImport}
           onCancel={() => setPending(null)}
+        />
+      )}
+
+      {officialPending && (
+        <ImportWizard
+          analysis={officialPending.analysis}
+          onConfirm={confirmOfficialImport}
+          onCancel={() => setOfficialPending(null)}
+        />
+      )}
+
+      {officialTemplateWizardOpen && (
+        <ScheduleTemplateWizard
+          mode="empty"
+          onCancel={() => setOfficialTemplateWizardOpen(false)}
+          onConfirm={(state) => {
+            applyOfficialScheduleSource(state, 'dashboard');
+            setOfficialTemplateWizardOpen(false);
+            notify('Pacote oficial preparado a partir de uma escala criada no Dashboard.');
+          }}
         />
       )}
 

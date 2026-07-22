@@ -19,6 +19,8 @@ import { DiagnosticsPanel, type DiagnosticItem } from './DiagnosticsPanel';
 
 interface OfficialPublicationWizardProps {
   officialPackage: DemoPublicationPackage | null;
+  officialSource: 'none' | 'import' | 'dashboard' | 'demo';
+  demoPackageAvailable: boolean;
   corporateLink: Partial<OfficialCorporateLink>;
   onCorporateLinkChange: (link: Partial<OfficialCorporateLink>) => void;
   backendStatus: OfficialBackendStatus;
@@ -29,6 +31,9 @@ interface OfficialPublicationWizardProps {
   onValidate: () => void;
   onPublishClick: () => void;
   publishResult: { revision: number } | null;
+  onStartImport: () => void;
+  onStartEmptySchedule: () => void;
+  onSelectDemoPackage: () => void;
   onGoToDemo: () => void;
 }
 
@@ -60,6 +65,8 @@ function backendStatusLabel(status: OfficialBackendStatus): string {
  */
 export function OfficialPublicationWizard({
   officialPackage,
+  officialSource,
+  demoPackageAvailable,
   corporateLink,
   onCorporateLinkChange,
   backendStatus,
@@ -70,13 +77,17 @@ export function OfficialPublicationWizard({
   onValidate,
   onPublishClick,
   publishResult,
+  onStartImport,
+  onStartEmptySchedule,
+  onSelectDemoPackage,
   onGoToDemo,
 }: OfficialPublicationWizardProps) {
   const [step, setStep] = useState(1);
 
   const eligibleMembers = officialPackage ? eligibleOfficialMembers(officialPackage) : [];
   const eligibleTeams = officialPackage ? eligibleOfficialTeams(officialPackage) : [];
-  const hasEligibleData = eligibleMembers.length > 0 && eligibleTeams.length > 0;
+  const hasEligibleTeam = eligibleTeams.length > 0;
+  const hasEligibleData = eligibleMembers.length > 0 && hasEligibleTeam;
   const referentialLinkError = officialPackage ? validateCorporateLinkLocally(officialPackage, corporateLink) : 'Nenhum pacote carregado.';
   const linkEligible = officialPackage ? isOfficialLinkEligible(officialPackage, corporateLink) : false;
   const linkOk = !referentialLinkError && linkEligible;
@@ -86,8 +97,8 @@ export function OfficialPublicationWizard({
   const canPublish = backendOnline && firebaseAdminStatus?.configured === true && writeEnabled && linkOk && dryRunOk && busy === 'IDLE';
 
   const steps: StepDef[] = [
-    { step: 1, label: 'Origem da escala', valid: hasEligibleData },
-    { step: 2, label: 'Revisão dos dados', valid: hasEligibleData },
+    { step: 1, label: 'Origem da escala', valid: Boolean(officialPackage && hasEligibleTeam) },
+    { step: 2, label: 'Revisão dos dados', valid: Boolean(officialPackage && hasEligibleTeam) },
     { step: 3, label: 'Diagnósticos', valid: true },
     { step: 4, label: 'Vínculo corporativo', valid: hasEligibleData && backendOnline },
     { step: 5, label: 'Dry-run', valid: hasEligibleData && backendOnline && linkOk },
@@ -108,13 +119,19 @@ export function OfficialPublicationWizard({
 
   const diagnostics: DiagnosticItem[] = [];
   if (!officialPackage) {
-    diagnostics.push({ id: 'no-package', severity: 'info', message: 'Nenhum pacote carregado ainda. Abra o Ambiente Demo para carregar dados a partir dele.' });
-  } else if (!hasEligibleData) {
+    diagnostics.push({ id: 'no-package', severity: 'info', message: 'Nenhum pacote oficial carregado ainda. Escolha uma origem na etapa 1.' });
+  } else if (!hasEligibleTeam && eligibleMembers.length === 0) {
     diagnostics.push({
       id: 'demo-contamination',
       severity: 'error',
       message: 'Os dados carregados pertencem ao Ambiente Demo (workspace demo-v1) e nunca são aceitos na publicação oficial.',
       detail: 'IDs contendo "demo" são rejeitados no cliente (eligibleOfficialMembers/Teams) e no servidor (assertOfficialOnlyWritePlan.mjs).',
+    });
+  } else if (!hasEligibleData) {
+    diagnostics.push({
+      id: 'official-no-members',
+      severity: 'info',
+      message: 'A origem oficial tem equipe elegível, mas ainda não possui membros disponíveis para vínculo corporativo.',
     });
   }
   if (backendStatus === 'OFFLINE') {
@@ -172,10 +189,40 @@ export function OfficialPublicationWizard({
         {step === 1 && (
           <div className="official-wizard-step-content">
             <h3>1 · Origem da escala</h3>
+            <div className="official-source-options" role="group" aria-label="Origem da escala oficial">
+              <button
+                type="button"
+                className="official-source-option"
+                aria-pressed={officialSource === 'import'}
+                onClick={onStartImport}
+              >
+                <b>Escala importada</b>
+                <span>XLS/XLSX processado pelo parser existente.</span>
+              </button>
+              <button
+                type="button"
+                className="official-source-option"
+                aria-pressed={officialSource === 'dashboard'}
+                onClick={onStartEmptySchedule}
+              >
+                <b>Escala criada no Dashboard</b>
+                <span>Cria um pacote oficial a partir do modelo vazio.</span>
+              </button>
+              <button
+                type="button"
+                className="official-source-option official-source-option-blocked"
+                aria-pressed={officialSource === 'demo'}
+                onClick={onSelectDemoPackage}
+              >
+                <b>Pacote Demo <span className="official-source-badge">bloqueado</span></b>
+                <span>Retitula workspaceId para ici-dev, mas os IDs continuam contaminados por design.</span>
+              </button>
+            </div>
             {!officialPackage && (
               <p>
-                Nenhum pacote carregado. Hoje a única origem de dados organizacionais é o{' '}
-                <button type="button" className="link-btn" onClick={onGoToDemo}>Ambiente Demo</button>.
+                Nenhum pacote carregado. Para usar a opção bloqueada, abra o{' '}
+                <button type="button" className="link-btn" onClick={onGoToDemo}>Ambiente Demo</button>
+                {demoPackageAvailable ? ' e selecione o pacote Demo.' : ' primeiro.'}
               </p>
             )}
             {officialPackage && (
@@ -187,7 +234,9 @@ export function OfficialPublicationWizard({
                 <p className={hasEligibleData ? 'official-wizard-ok' : 'official-wizard-blocked'}>
                   {hasEligibleData
                     ? `${eligibleMembers.length} membro(s) e ${eligibleTeams.length} equipe(s) elegíveis para ici-dev.`
-                    : 'Nenhum membro ou equipe elegível — todo o pacote pertence ao Ambiente Demo (workspace demo-v1) e é filtrado automaticamente.'}
+                    : hasEligibleTeam
+                      ? `${eligibleTeams.length} equipe(s) elegível(is), sem membros no pacote.`
+                      : 'Nenhum membro ou equipe elegível — todo o pacote pertence ao Ambiente Demo (workspace demo-v1) e é filtrado automaticamente.'}
                 </p>
               </>
             )}

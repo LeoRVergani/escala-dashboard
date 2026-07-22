@@ -24,6 +24,8 @@ const adminStatusDisabled: OfficialFirebaseAdminStatus = { ...adminStatusEnabled
 function baseProps(overrides: Partial<Parameters<typeof OfficialPublicationWizard>[0]> = {}) {
   return {
     officialPackage: cleanPackage,
+    officialSource: 'import' as const,
+    demoPackageAvailable: true,
     corporateLink: {},
     onCorporateLinkChange: vi.fn(),
     backendStatus: 'ONLINE' as const,
@@ -34,6 +36,9 @@ function baseProps(overrides: Partial<Parameters<typeof OfficialPublicationWizar
     onValidate: vi.fn(),
     onPublishClick: vi.fn(),
     publishResult: null,
+    onStartImport: vi.fn(),
+    onStartEmptySchedule: vi.fn(),
+    onSelectDemoPackage: vi.fn(),
     onGoToDemo: vi.fn(),
     ...overrides,
   };
