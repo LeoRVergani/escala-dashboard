@@ -58,6 +58,31 @@ describe('buildOfficialPackageFromSchedule', () => {
     expect(pkg.scheduleAssignments.length).toBeGreaterThan(0);
   });
 
+  it('deriva corporateLogin/emailNormalized como e-mail corporativo real a partir do login nu do XLS', () => {
+    const schedule = createEmptyScheduleFromCatalog('soc-noc-6x1', '2026-07-01');
+    const pkg = buildOfficialPackageFromSchedule(
+      schedule,
+      { name: 'SOC/NOC', hierarchy: 'SOC_NOC' },
+      [{ displayName: 'lvergani', login: 'lvergani' }],
+    );
+
+    expect(pkg.members).toHaveLength(1);
+    expect(pkg.members[0].corporateLogin).toBe('lvergani@ici.tec.br');
+    expect(pkg.members[0].emailNormalized).toBe('lvergani@ici.tec.br');
+  });
+
+  it('preserva o login como e-mail quando o XLS já traz um endereço completo', () => {
+    const schedule = createEmptyScheduleFromCatalog('soc-noc-6x1', '2026-07-01');
+    const pkg = buildOfficialPackageFromSchedule(
+      schedule,
+      { name: 'SOC/NOC', hierarchy: 'SOC_NOC' },
+      [{ displayName: 'Fulano', login: 'fulano@outraempresa.com' }],
+    );
+
+    expect(pkg.members[0].corporateLogin).toBe('fulano@outraempresa.com');
+    expect(pkg.members[0].emailNormalized).toBe('fulano@outraempresa.com');
+  });
+
   it('aceita criação vazia com time elegível e sem membros', () => {
     const schedule = createEmptyScheduleFromCatalog('soc-noc-6x1', '2026-07-01');
     const pkg = buildOfficialPackageFromSchedule(

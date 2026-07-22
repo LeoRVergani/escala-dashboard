@@ -66,9 +66,16 @@ function memberIdFromLogin(login: string): string {
   return slugify(normalizeLogin(login));
 }
 
-function emailFromLogin(login: string): string {
+// XLS de escala real so tem logins nus (sem dominio) - sem isso, corporateLogin/emailNormalized
+// nunca batem com o e-mail/username normalizado que o MSAL devolve na resolucao de identidade
+// (ver contrato em RemoteFirstDemoMemberDirectoryRepositoryTest, KMP), e "Minha Escala" nunca
+// encontra o cadastro corporativo do usuario real. Achado na FASE 14G ao testar ponta-a-ponta
+// com login MSAL real pela primeira vez.
+const OFFICIAL_CORPORATE_EMAIL_DOMAIN = 'ici.tec.br';
+
+function corporateEmailFromLogin(login: string): string {
   const normalized = normalizeLogin(login);
-  return normalized.includes('@') ? normalized : `${memberIdFromLogin(normalized)}@example.invalid`;
+  return normalized.includes('@') ? normalized : `${normalized}@${OFFICIAL_CORPORATE_EMAIL_DOMAIN}`;
 }
 
 function periodName(schedule: ScheduleState): string {
@@ -219,8 +226,8 @@ export function buildOfficialPackageFromSchedule(
       id,
       workspaceId: OFFICIAL_WORKSPACE_ID,
       displayName: member.displayName.trim() || normalizeLogin(member.login),
-      corporateLogin: normalizeLogin(member.login),
-      emailNormalized: emailFromLogin(member.login),
+      corporateLogin: corporateEmailFromLogin(member.login),
+      emailNormalized: corporateEmailFromLogin(member.login),
       active: true,
       schemaVersion: 1,
     })).sort((a, b) => a.id.localeCompare(b.id)),
