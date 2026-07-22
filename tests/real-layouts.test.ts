@@ -126,6 +126,45 @@ describe('Equipe N1 — estrutura real sanitizada', () => {
 });
 
 describe('SOC — abas Escala e Escalistas', () => {
+  it('oferece a opção combinada Escala + Escalistas sem remover as opções isoladas', () => {
+    const { analysis } = loadFixture('soc-combinado-regressao-ficticio.xlsx');
+
+    expect(analysis.options.some((candidate) => candidate.layout === 'soc-daily')).toBe(true);
+    expect(analysis.options.some((candidate) => candidate.layout === 'soc-escalistas')).toBe(true);
+    const combined = analysis.options.find((candidate) => candidate.layout === 'soc-combined');
+    expect(combined).toMatchObject({
+      label: 'Período completo cruzando Escala + Escalistas',
+      periodStart: '2026-06-26',
+      periodEnd: '2026-07-25',
+      socDailySheetName: 'Escala',
+      socEscalistasSheetName: 'Escalistas',
+    });
+  });
+
+  it('aceita /, quebra de linha, vírgula e ponto e vírgula como separadores de nomes no SOC combinado', () => {
+    const { wb, analysis } = loadFixture('soc-combinado-regressao-ficticio.xlsx');
+    const option = analysis.options.find((candidate) => candidate.layout === 'soc-combined')!;
+    const result = buildSchedule(wb, analysis, option.key);
+    const targetDay = result.state.dates!.indexOf('2026-07-22') + 1;
+    const shiftByLogin = Object.fromEntries(result.state.technicians.map((tech) => [
+      tech.login,
+      result.state.cells[tech.id][targetDay]?.shift,
+    ]));
+
+    expect(shiftByLogin).toMatchObject({
+      mad01: 'madrugada',
+      mad02: 'madrugada',
+      ffonseca: 'manha',
+      manha02: 'manha',
+      tarde01: 'tarde',
+      tarde02: 'tarde',
+      noite01: 'noite',
+      noite02: 'noite',
+    });
+    expect(shiftByLogin.ferias01).toBe('ferias');
+    expect(shiftByLogin.afast01).toBe('afastamento');
+  });
+
   it('separa vários logins por / e mantém o período completo atravessando dois meses', () => {
     const { wb, analysis } = loadFixture('soc-controle-julho-ficticio.xlsx');
     const option = analysis.options.find((candidate) => candidate.layout === 'soc-daily')!;

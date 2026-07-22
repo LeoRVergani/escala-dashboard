@@ -24,13 +24,26 @@ const TEAM_PREFIX_BY_HIERARCHY: Record<OfficialImportTeamInput['hierarchy'], str
 };
 
 type AssignmentShape = Pick<DemoScheduleAssignmentDto, 'assignmentType' | 'shiftName' | 'startTime' | 'endTime'>;
+const NO_DATA_SHIFT_NAME = 'Sem dado importado';
+const WORK_WITHOUT_SHIFT_PREFIX = 'Trabalho sem turno localizado';
+
+function statusCodeFromText(value: CellValue | undefined): string {
+  return fold(value?.text ?? '').split(/\s*-\s*/)[0].trim();
+}
+
+function offShiftName(value: CellValue | undefined): string | null {
+  const code = statusCodeFromText(value);
+  if (code === 'bh') return 'BH';
+  if (code === 'an') return 'Aniversário';
+  return null;
+}
 
 const ASSIGNMENT_BY_SHIFT: Record<ShiftId, (value: CellValue | undefined) => AssignmentShape> = {
   madrugada: () => ({ assignmentType: 'WORK_SHIFT', shiftName: 'Madrugada', startTime: null, endTime: null }),
   manha: () => ({ assignmentType: 'WORK_SHIFT', shiftName: 'Manhã', startTime: '07:00', endTime: '13:00' }),
   tarde: () => ({ assignmentType: 'WORK_SHIFT', shiftName: 'Tarde', startTime: '13:00', endTime: '19:00' }),
   noite: () => ({ assignmentType: 'WORK_SHIFT', shiftName: 'Noite', startTime: null, endTime: null }),
-  folga: () => ({ assignmentType: 'OFF', shiftName: null, startTime: null, endTime: null }),
+  folga: (value) => ({ assignmentType: 'OFF', shiftName: offShiftName(value), startTime: null, endTime: null }),
   ferias: () => ({ assignmentType: 'VACATION', shiftName: null, startTime: null, endTime: null }),
   plantao: () => ({ assignmentType: 'WORK_SHIFT', shiftName: 'Plantão', startTime: null, endTime: null }),
   comercial: () => ({ assignmentType: 'WORK_SHIFT', shiftName: 'Comercial', startTime: '08:00', endTime: '18:00' }),
@@ -108,6 +121,10 @@ function timePart(value: string): string | null {
 }
 
 function cellToAssignment(value: CellValue | undefined): AssignmentShape {
+  if (!value) return { assignmentType: 'OTHER', shiftName: NO_DATA_SHIFT_NAME, startTime: null, endTime: null };
+  if (value.shift === 'custom' && fold(value.text ?? '').startsWith(fold(WORK_WITHOUT_SHIFT_PREFIX))) {
+    return { assignmentType: 'OTHER', shiftName: value.text ?? WORK_WITHOUT_SHIFT_PREFIX, startTime: null, endTime: null };
+  }
   const shift = value?.shift ?? 'folga';
   return ASSIGNMENT_BY_SHIFT[shift](value);
 }
@@ -126,7 +143,6 @@ function matrixAssignments(
     if (!memberId) continue;
     dates.forEach((date, index) => {
       const value = schedule.cells[technician.id]?.[index + 1];
-      if (!value) return;
       const shape = cellToAssignment(value);
       assignments.push({
         id: `assignment-${teamIdValue}-${memberId}-${date}`,

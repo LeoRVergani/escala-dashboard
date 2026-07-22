@@ -149,6 +149,14 @@ describe('validateOfficialPackage', () => {
     expect(validate(pkg, { counts })).toMatchObject({ ok: false, code: 'INVALID_PACKAGE' });
   });
 
+  it('rejeita trabalho declarado sem turno localizado com erro tipado', () => {
+    const pkg = basePackage();
+    pkg.scheduleAssignments[0].assignmentType = 'OTHER';
+    pkg.scheduleAssignments[0].shiftName = 'Trabalho sem turno localizado (1)';
+
+    expect(validate(pkg)).toMatchObject({ ok: false, code: 'SCHEDULE_WORK_SHIFT_NOT_LOCATED' });
+  });
+
   it('rejeita efeitos externos ou notificacoes habilitados', () => {
     const pkg = basePackage();
     pkg.workspace.externalEffectsAllowed = true;

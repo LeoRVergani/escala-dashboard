@@ -10,7 +10,8 @@ interface Props {
 
 const layoutLabel: Record<SheetLayout, string> = {
   matrix: 'grade', long: 'relatório', n1: 'Equipe N1', 'soc-daily': 'SOC por data',
-  'soc-escalistas': 'SOC por colaborador', oncall: 'plantões com horário', unknown: 'não reconhecido',
+  'soc-escalistas': 'SOC por colaborador', 'soc-combined': 'SOC cruzado',
+  oncall: 'plantões com horário', unknown: 'não reconhecido',
 };
 
 function br(value?: string): string {

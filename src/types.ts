@@ -192,6 +192,7 @@ export type SheetLayout =
   | 'n1'
   | 'soc-daily'
   | 'soc-escalistas'
+  | 'soc-combined'
   | 'oncall'
   | 'unknown';
 
@@ -256,6 +257,9 @@ export interface ImportOption {
   secondaryBlockId?: string;
   /** Abre o modo visual próprio do Service Desk N1 com duas grades vinculadas. */
   serviceDeskN1?: boolean;
+  /** Abas fonte usadas pela importação SOC combinada Escala + Escalistas. */
+  socDailySheetName?: string;
+  socEscalistasSheetName?: string;
   primary?: boolean;
   technicians?: TechRowInfo[];
 }

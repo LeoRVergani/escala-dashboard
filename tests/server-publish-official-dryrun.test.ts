@@ -324,6 +324,24 @@ describe('POST /api/publish/official DRY_RUN', () => {
     expect(body.error.code).toBe('WORKSPACE_NOT_ALLOWED');
   });
 
+  it('bloqueia DRY_RUN com trabalho sem turno localizado', async () => {
+    const store = createInMemoryPublicationStore();
+    const testServer = await startTestServer(store);
+    const pkg = basePackage();
+    pkg.scheduleAssignments[0].assignmentType = 'OTHER';
+    pkg.scheduleAssignments[0].shiftName = 'Trabalho sem turno localizado (1)';
+    const packageRaw = JSON.stringify(pkg);
+
+    const response = await postOfficialPublish(testServer, publishBody({
+      packageRaw,
+      manifestRaw: manifestFor(packageRaw),
+    }));
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error.code).toBe('SCHEDULE_WORK_SHIFT_NOT_LOCATED');
+  });
+
   it('rejeita vinculo corporativo ausente antes de validar revisao', async () => {
     const store = createInMemoryPublicationStore();
     const testServer = await startTestServer(store);

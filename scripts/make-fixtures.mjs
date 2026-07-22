@@ -228,4 +228,97 @@ const socDates = Array.from({ length: 30 }, (_, index) => addDays(socStart, inde
   XLSX.writeFile(wb, join(outDir, 'relatorio-plantao-ficticio.xlsx'));
 }
 
+// 4) SOC combinado: regressão 25 trabalhados / 5 folgas e casos de fidelidade.
+{
+  const wb = XLSX.utils.book_new();
+  const start = dateOnly(2026, 6, 26);
+  const dates = Array.from({ length: 30 }, (_, index) => addDays(start, index));
+  const offMain = new Map([
+    ['2026-06-28', 'DF'],
+    ['2026-07-05', 'DU'],
+    ['2026-07-11', 'FOLGA'],
+    ['2026-07-18', 'DF'],
+    ['2026-07-25', 'DU'],
+  ]);
+  const iso = (date) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  const dateIndex = new Map(dates.map((date, index) => [iso(date), index]));
+  const codeProbeCodes = ['1', '2', '3', '4', '5', '6', 'DF', 'DU', 'FOLGA', 'X', 'BH', 'AN', 'HE', '#', ''];
+  const codeProbeShiftByIndex = new Map([
+    [0, 2],
+    [1, 3],
+    [2, 4],
+    [3, 5],
+    [4, 2],
+    [5, 3],
+  ]);
+
+  const daily = [
+    ['Dia', '', 'Turno - Presencial', '', '', '', ''],
+    ['', '', 'Madrugada', 'Manhã', 'Tarde', 'Noite', ''],
+  ];
+
+  dates.forEach((date, index) => {
+    const dateIso = iso(date);
+    const row = [
+      index % 3 === 0 ? date : `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()} ${weekdayLong(date)}`,
+      '',
+      'mad01\nmad02',
+      offMain.has(dateIso) ? 'manha02' : 'ffonseca, manha02',
+      'tarde01; tarde02',
+      'noite01/noite02',
+      '',
+    ];
+    const codeProbeShiftCol = codeProbeShiftByIndex.get(index);
+    if (codeProbeShiftCol) row[codeProbeShiftCol] = `${row[codeProbeShiftCol]}; codeprobe`;
+    daily.push(row);
+  });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(daily), 'Escala');
+
+  const escalistas = Array.from({ length: 30 }, () => Array(3 + dates.length).fill(''));
+  escalistas[0][0] = 'SOC - Escala combinada — fixture fictícia';
+  escalistas[2][1] = 'Turno';
+  escalistas[2][2] = 'DIA/MÊS';
+  escalistas[3][2] = 'Dia Semana';
+  escalistas[4][2] = 'COLABORADOR';
+  dates.forEach((date, index) => {
+    escalistas[2][3 + index] = `${pad(date.getDate())}/${pad(date.getMonth() + 1)}`;
+    escalistas[3][3 + index] = weekday(date);
+  });
+
+  const people = [
+    ['Madrugada', 'mad01', () => '1'],
+    ['', 'mad02', () => '1'],
+    ['', 'codeprobe', (_date, index) => codeProbeCodes[index] ?? 'DF'],
+    ['Manhã', 'ffonseca', (date) => offMain.get(iso(date)) ?? '1'],
+    ['', 'manha02', () => '1'],
+    ['', 'buraco', (date) => (iso(date) === '2026-07-15' ? '' : 'DF')],
+    ['Tarde', 'tarde01', () => '1'],
+    ['', 'tarde02', () => '1'],
+    ['Noite', 'noite01', () => '1'],
+    ['', 'noite02', () => '1'],
+    ['', 'ferias01', () => 'X'],
+    ['', 'afast01', () => '#'],
+  ];
+  people.forEach(([shift, login, codeFor], personIndex) => {
+    const row = 5 + personIndex;
+    escalistas[row][1] = shift;
+    escalistas[row][2] = login;
+    dates.forEach((date, index) => {
+      escalistas[row][3 + index] = codeFor(date, index);
+    });
+  });
+  escalistas[20][1] = 'Legenda';
+  [['X', 'Férias'], ['DF', 'DSR- Final de Semana'], ['DU', 'DSR- Dia útil'], ['BH', 'Compensação BH'], ['Folga', 'Folga- Feriado'], ['AN', 'Folga aniversário'], ['HE', 'Hora extra'], ['#', 'Afastamento']]
+    .forEach(([code, text], index) => {
+      escalistas[21 + index][0] = code;
+      escalistas[21 + index][1] = text;
+    });
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(escalistas), 'Escalistas');
+  XLSX.writeFile(wb, join(outDir, 'soc-combinado-regressao-ficticio.xlsx'));
+
+  if (dateIndex.get('2026-07-22') === undefined) {
+    throw new Error('Fixture SOC combinada sem 22/07/2026.');
+  }
+}
+
 console.log(`Fixtures sanitizadas geradas em ${outDir}`);

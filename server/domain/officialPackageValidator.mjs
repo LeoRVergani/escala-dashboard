@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 // Espelha demoPackageValidator.mjs, mas exige workspace ici-dev em vez de demo-v1.
 const EXPECTED_SCHEMA_VERSION = 1;
 const EXPECTED_WORKSPACE_ID = 'ici-dev';
+const WORK_WITHOUT_SHIFT_PREFIX = 'Trabalho sem turno localizado';
 
 export const REQUIRED_ARRAY_KEYS = [
   'teams',
@@ -86,6 +87,14 @@ function hasInvalidCounts(pkg, manifest) {
   return REQUIRED_ARRAY_KEYS.some((key) => manifest.counts[key] !== pkg[key].length);
 }
 
+function hasWorkWithoutLocatedShift(pkg) {
+  return pkg.scheduleAssignments.some((item) => (
+    item.assignmentType === 'OTHER'
+    && typeof item.shiftName === 'string'
+    && item.shiftName.startsWith(WORK_WITHOUT_SHIFT_PREFIX)
+  ));
+}
+
 export function validateOfficialPackage({ packageRaw, manifestRaw }) {
   let parsedPackage;
   let parsedManifest;
@@ -138,6 +147,14 @@ export function validateOfficialPackage({ packageRaw, manifestRaw }) {
       ok: false,
       code: 'INVALID_PACKAGE',
       message: 'O pacote de publicação oficial tem contagem divergente em relação ao manifesto.',
+    };
+  }
+
+  if (hasWorkWithoutLocatedShift(parsedPackage)) {
+    return {
+      ok: false,
+      code: 'SCHEDULE_WORK_SHIFT_NOT_LOCATED',
+      message: 'O pacote contém trabalho declarado sem turno localizado na aba Escala.',
     };
   }
 

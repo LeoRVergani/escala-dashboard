@@ -441,6 +441,28 @@ const SOC_SHIFT_COLS: Array<[number, ShiftId]> = [
   [4, 'tarde'],
   [5, 'noite'],
 ];
+const SOC_NO_DATA_TEXT = 'Sem dado importado';
+const SOC_WORK_WITHOUT_SHIFT_TEXT = 'Trabalho sem turno localizado';
+const SOC_MULTI_NAME_RE = /[\/\\\n,;]+/;
+
+function multiNameCellText(value: Cell): string {
+  if (value === null || value === undefined) return '';
+  if (value instanceof Date) return cellText(value);
+  return String(value).replace(/\r\n?/g, '\n').trim();
+}
+
+function splitSocCell(value: Cell): string[] {
+  return multiNameCellText(value)
+    .split(SOC_MULTI_NAME_RE)
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+function splitSocLogins(value: Cell): string[] {
+  return splitSocCell(value)
+    .map((part) => part.toLowerCase())
+    .filter((part) => looksLikeLogin(part));
+}
 
 function isSocDaily(grid: Grid): boolean {
   return fold(cellText(grid[0]?.[0])) === 'dia' && SOC_SHIFT_COLS.every(([col]) => Boolean(cellText(grid[1]?.[col])));
@@ -460,7 +482,7 @@ function socSpecial(raw: string): { login: string; value: CellValue } | null {
   return { login, value: { shift: 'custom', text: raw.trim() } };
 }
 
-function analyzeSocDaily(sheetName: string, grid: Grid): { analysis: SheetAnalysis; option: ImportOption } | null {
+function analyzeSocDaily(sheetName: string, grid: Grid, baseYear?: number): { analysis: SheetAnalysis; option: ImportOption } | null {
   if (!isSocDaily(grid)) return null;
   const analysis = baseAnalysis(sheetName, 'soc-daily');
   analysis.headerRow = 1;
@@ -468,20 +490,19 @@ function analyzeSocDaily(sheetName: string, grid: Grid): { analysis: SheetAnalys
   const techRows = new Map<string, TechRowInfo>();
   let records = 0;
   for (let r = 2; r < grid.length; r++) {
-    const date = dateFromCell(grid[r]?.[0]);
+    const date = dateFromCell(grid[r]?.[0], baseYear);
     if (!date) {
       if (grid[r]?.some((cell) => cellText(cell))) analysis.ignoredRows.push({ row: r + 1, reason: 'data inválida', preview: rowPreview(grid[r]) });
       continue;
     }
     dates.push(dateToIso(date));
     for (const [col] of SOC_SHIFT_COLS) {
-      for (const login of cellText(grid[r]?.[col]).split('/').map((v) => v.trim().toLowerCase()).filter(Boolean)) {
-        if (!looksLikeLogin(login)) continue;
+      for (const login of splitSocLogins(grid[r]?.[col])) {
         records++;
         if (!techRows.has(login)) techRows.set(login, { row: r, login, raw: login });
       }
     }
-    for (const part of cellText(grid[r]?.[6]).split(/\\/).map((v) => v.trim()).filter(Boolean)) {
+    for (const part of splitSocCell(grid[r]?.[6])) {
       const special = socSpecial(part);
       if (!special) {
         analysis.ignoredRows.push({ row: r + 1, reason: 'situação especial não reconhecida', preview: part });
@@ -612,7 +633,7 @@ function normalizeEscalistasCode(raw: Cell, rowShift: ShiftId): CellValue | null
   const key = fold(text);
   if (/^[1-6]$/.test(key)) return { shift: rowShift, text };
   if (['df', 'du', 'bh', 'folga', 'an'].includes(key)) return { shift: 'folga', text };
-  if (key === 'x') return { shift: 'ferias', text };
+  if (key === 'x' || key.startsWith('ferias')) return { shift: 'ferias', text };
   if (key === 'he') return { shift: 'extra', text };
   if (key === '#') return { shift: 'afastamento', text };
   return { shift: 'custom', text };
@@ -912,6 +933,38 @@ function workbookBaseYear(wb: XLSX.WorkBook): number {
   return new Date().getFullYear();
 }
 
+function buildSocCombinedOptions(options: ImportOption[]): ImportOption[] {
+  const dailies = options.filter((option) => option.layout === 'soc-daily');
+  const escalistas = options.filter((option) => option.layout === 'soc-escalistas');
+  const combined: ImportOption[] = [];
+  for (const daily of dailies) {
+    for (const escalista of escalistas) {
+      if (daily.periodStart !== escalista.periodStart || daily.periodEnd !== escalista.periodEnd) continue;
+      const technicians = new Map<string, TechRowInfo>();
+      for (const tech of [...(daily.technicians ?? []), ...(escalista.technicians ?? [])]) {
+        technicians.set(technicianKey(tech.login, tech.name), tech);
+      }
+      combined.push({
+        key: `${daily.sheetName}+${escalista.sheetName}::soc-combined::${daily.periodStart}::${daily.periodEnd}`,
+        sheetName: daily.sheetName,
+        monthKey: daily.monthKey,
+        monthLabel: daily.monthLabel,
+        techCount: technicians.size,
+        layout: 'soc-combined',
+        label: 'Período completo cruzando Escala + Escalistas',
+        periodStart: daily.periodStart,
+        periodEnd: daily.periodEnd,
+        recordCount: (daily.recordCount ?? 0) + (escalista.recordCount ?? 0),
+        technicians: [...technicians.values()],
+        socDailySheetName: daily.sheetName,
+        socEscalistasSheetName: escalista.sheetName,
+        primary: true,
+      });
+    }
+  }
+  return combined;
+}
+
 export function analyzeWorkbook(wb: XLSX.WorkBook, fileName: string): WorkbookAnalysis {
   const sheets: SheetAnalysis[] = [];
   const options: ImportOption[] = [];
@@ -925,7 +978,7 @@ export function analyzeWorkbook(wb: XLSX.WorkBook, fileName: string): WorkbookAn
       options.push(...n1.options);
       continue;
     }
-    const socDaily = analyzeSocDaily(sheetName, grid);
+    const socDaily = analyzeSocDaily(sheetName, grid, baseYear);
     if (socDaily) {
       sheets.push(socDaily.analysis);
       options.push(socDaily.option);
@@ -964,7 +1017,8 @@ export function analyzeWorkbook(wb: XLSX.WorkBook, fileName: string): WorkbookAn
   }
 
   // A mesma aba/mês/bloco gera apenas uma opção.
-  const deduped = [...new Map(options.map((option) => [option.key, option])).values()];
+  const baseOptions = [...new Map(options.map((option) => [option.key, option])).values()];
+  const deduped = [...new Map([...baseOptions, ...buildSocCombinedOptions(baseOptions)].map((option) => [option.key, option])).values()];
   const errors = deduped.length ? [] : ['Nenhuma aba com escala reconhecível foi encontrada neste arquivo.'];
   return { fileName, sheets, options: deduped, errors };
 }
@@ -1126,21 +1180,115 @@ function remapCellsToOperationalCycle(
   return { dates, cells: remapped };
 }
 
+interface SocDailyInfo {
+  dates: string[];
+  logins: Set<string>;
+  cellsByLoginAndDate: Map<string, Map<string, CellValue>>;
+}
+
+function readSocDailyInfo(grid: Grid, baseYear?: number): SocDailyInfo {
+  const dates: string[] = [];
+  const logins = new Set<string>();
+  const cellsByLoginAndDate = new Map<string, Map<string, CellValue>>();
+
+  const setValue = (login: string, date: string, value: CellValue) => {
+    logins.add(login);
+    const row = cellsByLoginAndDate.get(login) ?? new Map<string, CellValue>();
+    row.set(date, value);
+    cellsByLoginAndDate.set(login, row);
+  };
+
+  for (let r = 2; r < grid.length; r++) {
+    const date = dateFromCell(grid[r]?.[0], baseYear);
+    if (!date) continue;
+    const dateIso = dateToIso(date);
+    dates.push(dateIso);
+    for (const [col, shift] of SOC_SHIFT_COLS) {
+      for (const login of splitSocLogins(grid[r]?.[col])) {
+        setValue(login, dateIso, { shift });
+      }
+    }
+    for (const raw of splitSocCell(grid[r]?.[6])) {
+      const special = socSpecial(raw);
+      if (special) setValue(special.login, dateIso, special.value);
+    }
+  }
+
+  return { dates, logins, cellsByLoginAndDate };
+}
+
+function countCells(cells: ScheduleState['cells']): number {
+  return Object.values(cells).reduce((sum, row) => sum + Object.keys(row).length, 0);
+}
+
 function buildSocDaily(wb: XLSX.WorkBook, analysis: WorkbookAnalysis, option: ImportOption): ImportResult {
   const grid = sheetToGrid(wb.Sheets[option.sheetName]);
-  const dates: string[] = [];
-  const dateRows: number[] = [];
-  const logins = new Set<string>();
-  for (let r = 2; r < grid.length; r++) {
-    const date = dateFromCell(grid[r]?.[0]);
-    if (!date) continue;
-    dates.push(dateToIso(date));
-    dateRows.push(r);
-    for (const [col] of SOC_SHIFT_COLS) {
-      cellText(grid[r]?.[col]).split('/').map((value) => value.trim().toLowerCase()).filter(Boolean).forEach((login) => logins.add(login));
-    }
-    cellText(grid[r]?.[6]).split(/\\/).map((value) => socSpecial(value)).filter((value): value is NonNullable<typeof value> => Boolean(value)).forEach((special) => logins.add(special.login));
+  const info = readSocDailyInfo(grid, Number(option.periodStart?.slice(0, 4) ?? option.monthKey.year));
+  const technicians: Technician[] = [];
+  const byLogin = new Map<string, string>();
+  for (const login of [...info.logins].sort()) {
+    const id = newTechId();
+    byLogin.set(login, id);
+    technicians.push({ id, login });
   }
+  const cells: ScheduleState['cells'] = {};
+  const counters = { recognized: 0, custom: 0 };
+  for (const [login, row] of info.cellsByLoginAndDate) {
+    const id = byLogin.get(login);
+    if (!id) continue;
+    info.dates.forEach((date, dateIndex) => putCell(cells, id, dateIndex + 1, row.get(date) ?? null, counters));
+  }
+  const filled = countCells(cells);
+  const cycle = remapCellsToOperationalCycle(cells, info.dates, option.monthKey);
+  return {
+    state: { monthKey: option.monthKey, technicians, cells: cycle.cells, dates: cycle.dates, visualGrouping: 'operational-shift', sourceLabel: `${analysis.fileName} · ${option.sheetName} · ciclo 25–26` },
+    recognizedShifts: counters.recognized,
+    customShifts: counters.custom,
+    emptyCells: technicians.length * cycle.dates.length - filled,
+    importedRecords: counters.recognized + counters.custom,
+  };
+}
+
+function explicitSocNoData(): CellValue {
+  return { shift: 'custom', text: SOC_NO_DATA_TEXT };
+}
+
+function explicitSocWorkWithoutShift(rawCode: string): CellValue {
+  return { shift: 'custom', text: `${SOC_WORK_WITHOUT_SHIFT_TEXT} (${rawCode})` };
+}
+
+function isOperationalSocShift(value: CellValue | undefined): value is CellValue & { shift: 'madrugada' | 'manha' | 'tarde' | 'noite' } {
+  return value?.shift === 'madrugada' || value?.shift === 'manha' || value?.shift === 'tarde' || value?.shift === 'noite';
+}
+
+function combineSocValue(status: CellValue | null, dailyValue: CellValue | undefined): CellValue {
+  const statusKey = fold(status?.text ?? '');
+  if (/^[1-6]$/.test(statusKey)) {
+    return isOperationalSocShift(dailyValue) ? { shift: dailyValue.shift, text: status?.text } : explicitSocWorkWithoutShift(status?.text ?? statusKey);
+  }
+  if (statusKey === 'he') return { shift: 'extra', text: status?.text ?? 'HE' };
+  if (status) return status;
+  if (dailyValue) return dailyValue;
+  return explicitSocNoData();
+}
+
+function buildSocCombined(wb: XLSX.WorkBook, analysis: WorkbookAnalysis, option: ImportOption): ImportResult {
+  const dailySheetName = option.socDailySheetName;
+  const escalistasSheetName = option.socEscalistasSheetName;
+  if (!dailySheetName || !escalistasSheetName) throw new Error('Opção SOC combinada sem abas fonte.');
+
+  const baseYear = Number(option.periodStart?.slice(0, 4) ?? option.monthKey.year);
+  const dailyInfo = readSocDailyInfo(sheetToGrid(wb.Sheets[dailySheetName]), baseYear);
+  const escalistasGrid = sheetToGrid(wb.Sheets[escalistasSheetName]);
+  const escalistasInfo = findEscalistasInfo(escalistasGrid, baseYear);
+  if (!escalistasInfo) throw new Error('Estrutura da aba Escalistas não encontrada.');
+
+  const logins = new Set<string>(dailyInfo.logins);
+  for (const tech of escalistasInfo.technicians) {
+    if (tech.login) logins.add(tech.login);
+  }
+
+  const dates = escalistasInfo.dates;
   const technicians: Technician[] = [];
   const byLogin = new Map<string, string>();
   for (const login of [...logins].sort()) {
@@ -1148,29 +1296,44 @@ function buildSocDaily(wb: XLSX.WorkBook, analysis: WorkbookAnalysis, option: Im
     byLogin.set(login, id);
     technicians.push({ id, login });
   }
+
+  const statuses = new Map<string, Map<string, CellValue | null>>();
+  for (const tech of escalistasInfo.technicians) {
+    if (!tech.login) continue;
+    const row = statuses.get(tech.login) ?? new Map<string, CellValue | null>();
+    escalistasInfo.dateColumns.forEach((col, index) => {
+      const date = escalistasInfo.dates[index];
+      if (date) row.set(date, normalizeEscalistasCode(escalistasGrid[tech.row]?.[col], tech.shift));
+    });
+    statuses.set(tech.login, row);
+  }
+
   const cells: ScheduleState['cells'] = {};
   const counters = { recognized: 0, custom: 0 };
-  dateRows.forEach((rowIndex, dateIndex) => {
-    for (const [col, shift] of SOC_SHIFT_COLS) {
-      for (const login of cellText(grid[rowIndex]?.[col]).split('/').map((value) => value.trim().toLowerCase()).filter(Boolean)) {
-        const id = byLogin.get(login);
-        if (id) putCell(cells, id, dateIndex + 1, { shift }, counters);
-      }
-    }
-    for (const raw of cellText(grid[rowIndex]?.[6]).split(/\\/).map((value) => value.trim()).filter(Boolean)) {
-      const special = socSpecial(raw);
-      const id = special ? byLogin.get(special.login) : undefined;
-      if (id && special) putCell(cells, id, dateIndex + 1, special.value, counters);
-    }
-  });
-  const filled = Object.values(cells).reduce((sum, row) => sum + Object.keys(row).length, 0);
-  const cycle = remapCellsToOperationalCycle(cells, dates, option.monthKey);
+  for (const login of [...logins].sort()) {
+    const id = byLogin.get(login);
+    if (!id) continue;
+    dates.forEach((date, index) => {
+      const status = statuses.get(login)?.get(date) ?? null;
+      const dailyValue = dailyInfo.cellsByLoginAndDate.get(login)?.get(date);
+      putCell(cells, id, index + 1, combineSocValue(status, dailyValue), counters);
+    });
+  }
+
+  const filled = countCells(cells);
   return {
-    state: { monthKey: option.monthKey, technicians, cells: cycle.cells, dates: cycle.dates, visualGrouping: 'operational-shift', sourceLabel: `${analysis.fileName} · ${option.sheetName} · ciclo 25–26` },
+    state: {
+      monthKey: option.monthKey,
+      technicians,
+      cells,
+      dates,
+      visualGrouping: 'operational-shift',
+      sourceLabel: `${analysis.fileName} · ${dailySheetName} + ${escalistasSheetName}`,
+    },
     recognizedShifts: counters.recognized,
     customShifts: counters.custom,
-    emptyCells: technicians.length * cycle.dates.length - filled,
-    importedRecords: counters.recognized + counters.custom,
+    emptyCells: technicians.length * dates.length - filled,
+    importedRecords: filled,
   };
 }
 
@@ -1275,6 +1438,7 @@ export function buildSchedule(wb: XLSX.WorkBook, analysis: WorkbookAnalysis, opt
     case 'n1': return buildN1(wb, analysis, option);
     case 'soc-daily': return buildSocDaily(wb, analysis, option);
     case 'soc-escalistas': return buildSocEscalistas(wb, analysis, option);
+    case 'soc-combined': return buildSocCombined(wb, analysis, option);
     case 'oncall': return buildOnCall(wb, analysis, option);
     case 'matrix':
     case 'long': return buildGeneric(wb, analysis, option);

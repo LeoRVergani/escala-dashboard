@@ -373,6 +373,28 @@ describe('POST /api/publish/official COMMIT', () => {
     });
   });
 
+  it('bloqueia COMMIT com trabalho sem turno localizado antes de escrever no store', async () => {
+    const store = createInMemoryPublicationStore();
+    const testServer = await startTestServer(store, { allowOfficialFirestoreWrite: true });
+    const pkg = basePackage();
+    pkg.scheduleAssignments[0].assignmentType = 'OTHER';
+    pkg.scheduleAssignments[0].shiftName = 'Trabalho sem turno localizado (1)';
+    const packageRaw = JSON.stringify(pkg);
+
+    const response = await postOfficialPublish(testServer, publishBody({
+      packageRaw,
+      manifestRaw: manifestFor(packageRaw),
+    }));
+    const body = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(body.error.code).toBe('SCHEDULE_WORK_SHIFT_NOT_LOCATED');
+    await expect(store.getWorkspaceStatus('ici-dev')).resolves.toEqual({
+      exists: false,
+      publicationRevision: 0,
+    });
+  });
+
   it('publica uma primeira revisao valida e marca o publication_record como ACTIVE', async () => {
     const store = createInMemoryPublicationStore();
     const testServer = await startTestServer(store, { allowOfficialFirestoreWrite: true });
