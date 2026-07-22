@@ -12,6 +12,7 @@ import { createOfficialPublishRouter } from './routes/officialPublish.mjs';
 import { createOfficialScheduleRouter } from './routes/officialSchedule.mjs';
 import { createOfficialStatusRouter } from './routes/officialStatus.mjs';
 import { createPublishRouter } from './routes/publish.mjs';
+import { createPushSubscriptionsRouter } from './routes/pushSubscriptions.mjs';
 
 function isSafeDetails(details) {
   if (!details || typeof details !== 'object' || Array.isArray(details)) {
@@ -67,7 +68,7 @@ export function createApp(config, overrides = {}) {
       callback(null, false);
     },
     credentials: true,
-    methods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
   }));
 
   app.use(express.json({ limit: config.maxJsonBodyBytes }));
@@ -79,6 +80,7 @@ export function createApp(config, overrides = {}) {
   app.use('/api/official/status', createOfficialStatusRouter(routeDependencies));
   app.use('/api/official/schedule', createOfficialScheduleRouter(routeDependencies));
   app.use('/api/publish/official', createOfficialPublishRouter(routeDependencies));
+  app.use('/api/push/subscriptions', createPushSubscriptionsRouter(routeDependencies));
   app.use('/api/admin', createAdminRouter(routeDependencies));
   if (config.devLocalAuthEnabled === true && config.nodeEnv !== 'production') {
     app.use('/api/dev', createDevLoginRouter(routeDependencies));
