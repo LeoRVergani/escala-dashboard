@@ -1,5 +1,45 @@
 # Histórico de versões
 
+## 1.15.0 — 22/07/2026
+
+- resolve o bloqueio estrutural da Publicação Oficial: até aqui a única origem
+  possível do pacote oficial era o Ambiente Demo retitulado (`toOfficialPackage`),
+  e como todo `id` do fixture `demo-v1` contém `"demo"`, `eligibleOfficialMembers`/
+  `eligibleOfficialTeams` sempre voltavam vazios — o wizard nunca tinha dados
+  elegíveis para publicar de verdade. Novo `buildOfficialPackageFromSchedule`
+  (`src/lib/officialWorkspace/buildFromSchedule.ts`) gera um pacote `ici-dev`
+  genuíno a partir de uma escala importada (XLS/XLSX, parser existente) ou
+  criada no Dashboard, com IDs determinísticos (slug de nome/login normalizado)
+  nunca contaminados pela substring `demo`; o wizard agora oferece "Publicação
+  oficial ativa", "Escala importada", "Escala criada no Dashboard" e "Pacote
+  Demo" (este último mantido claramente rotulado como bloqueado por design);
+- adiciona perfis administrativos (`USER`/`SCHEDULE_ADMIN`/`SYSTEM_ADMIN`),
+  fechando uma lacuna real encontrada em auditoria: as rotas Express de
+  publicação oficial não verificavam identidade do chamador (só a flag
+  `ALLOW_OFFICIAL_FIRESTORE_WRITE` + confirmação textual). Novo middleware
+  `verifyCaller` (`server/infra/verifyCaller.mjs`) valida o ID token real do
+  Firebase Auth (`Authorization: Bearer`) e resolve papel/times antes de
+  qualquer dry-run/commit; nova seção "Administração" no Dashboard (9ª,
+  visível só para `SYSTEM_ADMIN`) lista/cadastra administradores, com
+  bloqueio contra remover o último administrador do sistema;
+- adiciona bootstrap local de autenticação para desenvolvimento (dupla trava:
+  `DASHBOARD_DEV_LOCAL_AUTH=true` **e** `NODE_ENV!=production`, checada a cada
+  requisição), permitindo testar o fluxo administrativo sem depender do
+  cadastro MSAL/Entra completo ainda — sessão assinada com HMAC-SHA256
+  nativo, cookie `httpOnly`/`sameSite=strict`, sempre identificada por um
+  selo visível "MODO DE TESTE";
+- adiciona gateway de leitura da publicação oficial ativa (`GET
+  /api/official/schedule`), autenticado/autorizado por time, lendo a
+  revisão ativa (ou uma revisão anterior específica) e filtrando
+  estritamente por `teamId` — nenhum dado de outro time é incluído. O
+  frontend passa a rastrear a revisão-base carregada e reenviá-la em
+  dry-run/commit; a proteção de concorrência (`PUBLICATION_REVISION_CONFLICT`)
+  já existia no backend (`reserveRevision`) e agora tem uma UX clara de
+  "recarregar" quando outra pessoa já publicou uma revisão mais nova;
+- 396 testes (351 → 396: origem oficial +7, RBAC +14, bootstrap local +9,
+  leitura oficial +15), todos verdes; nenhum dos testes/fluxos anteriores
+  foi removido ou perdeu cobertura.
+
 ## 1.14.0 — 21/07/2026
 
 - reorganiza o Dashboard, antes uma única página longa, em uma casca de navegação

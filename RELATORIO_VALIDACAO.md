@@ -1,4 +1,52 @@
-# Relatório de validação — Painel de Escalas 1.13.0
+# Relatório de validação — Painel de Escalas 1.15.0
+
+## Release 1.15.0 — FASE 14f (origem oficial `ici-dev`, perfis administrativos, leitura oficial)
+
+Quatro rodadas, cada uma revisada e validada de forma independente antes da
+seguinte:
+
+1. **Origem oficial**: `buildOfficialPackageFromSchedule` gera um pacote
+   `ici-dev` real (importação XLS/XLSX ou criação no Dashboard), com IDs
+   determinísticos nunca contaminados pela substring `demo` — resolve o
+   bloqueio onde a única origem do wizard era o pacote Demo (sempre
+   inelegível por design). 7 testes novos (351→358).
+2. **Perfis administrativos**: estende `UserLink` com `role`
+   (`USER`/`SCHEDULE_ADMIN`), preservando `system_admins`/`responsibleLogin`
+   existentes. Fecha uma lacuna real de segurança encontrada em auditoria:
+   as rotas Express de publicação oficial não verificavam identidade do
+   chamador (só a flag de escrita + confirmação textual). Novo middleware
+   `verifyCaller` valida `Authorization: Bearer <idToken>` via Firebase
+   Admin (`auth.verifyIdToken`) e resolve papel/times antes de qualquer
+   dry-run/commit; nova rota `/api/admin/users` (`SYSTEM_ADMIN` apenas), com
+   bloqueio contra remover o último administrador ativo; nova seção
+   "Administração" no Dashboard. 14 testes novos (358→372).
+3. **Bootstrap local de dev**: permite testar o fluxo administrativo sem
+   depender do cadastro MSAL/Entra completo ainda, com dupla trava
+   (`DASHBOARD_DEV_LOCAL_AUTH=true` E `NODE_ENV!=production`, checada a cada
+   requisição, não só na montagem da rota), sessão HMAC-SHA256 assinada,
+   cookie `httpOnly`/`sameSite=strict`, selo "MODO DE TESTE" sempre visível.
+   9 testes novos (372→381).
+4. **Leitura oficial + concorrência**: `GET /api/official/schedule`
+   (autenticado/autorizado por time) lê a revisão ativa (ou uma anterior via
+   `?revision=N`) e filtra estritamente por `teamId` — confirmado que a
+   proteção de concorrência (`PUBLICATION_REVISION_CONFLICT`) já existia no
+   backend (`reserveRevision`); o que faltava era o frontend rastrear a
+   revisão-base e reenviá-la, agora feito, com UX de "recarregar" no
+   conflito. 15 testes novos (381→396).
+
+Nenhuma escrita real foi feita (`ALLOW_OFFICIAL_FIRESTORE_WRITE` permanece
+desligada), nenhuma credencial foi versionada, `firestore.rules` não foi
+implantado (mudanças só valem para o Emulator).
+
+Validado: `npx tsc --noEmit` (limpo em todas as 4 rodadas), `npx vitest run`
+(53 arquivos, 396 testes, 0 falhas, verificado de forma independente após
+cada rodada — não apenas o relato do executor), `npm run build` (produção,
+sem erros), servidor Express + Vite dev rodando localmente com validação
+visual via Chromium real em 3 resoluções (1366×768, 1920×1080, 412×915
+mobile) sem erros de console, incluindo navegação até o wizard de
+Publicação Oficial confirmando as 4 origens de dados visíveis (oficial
+ativa, importada, criada no Dashboard, Demo bloqueado). Detalhe completo em
+`docs/spec/09-DASHBOARD-ORIGEM-OFICIAL-ICI-DEV.md`.
 
 ## Release 1.13.0 — FASE 14D (Publicação Oficial `ici-dev`)
 
