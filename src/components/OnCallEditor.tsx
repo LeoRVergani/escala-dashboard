@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties, type DragEvent } from 'react';
+import { useMemo, useState, type DragEvent } from 'react';
 import {
   addMonths,
   createOnCallRecord,
@@ -11,6 +11,7 @@ import {
   startsInOperationalCycle,
 } from '../lib/onCall';
 import { cycle25To26 } from '../lib/dates';
+import { automaticTechnicianColor, technicianStyle } from '../lib/technicianStyle';
 import type { MonthKey, OnCallRecord, Technician } from '../types';
 
 interface Props {
@@ -35,7 +36,6 @@ const MONTHS = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
 ];
-const AUTO_COLORS = ['#9a6700', '#b54708', '#15803d', '#1d4ed8', '#7e22ce', '#be185d', '#0f766e', '#a21caf'];
 
 type CardMode = 'single' | 'edges' | 'segments';
 
@@ -52,30 +52,6 @@ function hours(minutes: number): string {
 function brDate(value: string): string {
   const [year, month, day] = value.split('-');
   return `${day}/${month}/${year}`;
-}
-
-function automaticTechnicianColor(name: string): string {
-  let hash = 0;
-  for (const char of name) hash = (hash * 31 + char.charCodeAt(0)) | 0;
-  return AUTO_COLORS[Math.abs(hash) % AUTO_COLORS.length];
-}
-
-function colorWithAlpha(hex: string, alpha: string): string {
-  return /^#[0-9a-f]{6}$/i.test(hex) ? `${hex}${alpha}` : hex;
-}
-
-function technicianColor(name: string, technicians: Technician[]): string {
-  return technicians.find((item) => item.name === name)?.color ?? automaticTechnicianColor(name);
-}
-
-function technicianStyle(name: string, technicians: Technician[]): CSSProperties {
-  const color = technicianColor(name, technicians);
-  return {
-    ['--tech-color' as string]: color,
-    ['--tech-bg' as string]: colorWithAlpha(color, '12'),
-    ['--tech-border' as string]: colorWithAlpha(color, '55'),
-    ['--tech-strong-bg' as string]: colorWithAlpha(color, '20'),
-  };
 }
 
 function uniqueNames(values: string[]): string[] {

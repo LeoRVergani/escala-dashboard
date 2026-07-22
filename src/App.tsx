@@ -38,6 +38,7 @@ import { cellKey, ScheduleGrid, type CellKey } from './components/ScheduleGrid';
 import { ImportWizard } from './components/ImportWizard';
 import { ScheduleTemplateWizard } from './components/ScheduleTemplateWizard';
 import { OnCallEditor } from './components/OnCallEditor';
+import { FolgaAccountingPanel } from './components/FolgaAccountingPanel';
 import { SocPlanner } from './components/SocPlanner';
 import { ConflictAlertsPanel } from './components/ConflictAlertsPanel';
 import { FirebaseDashboardBar } from './components/FirebaseDashboardBar';
@@ -1773,32 +1774,35 @@ export default function App() {
             </div>
 
             {visibleSchedule && (
-              <ScheduleGrid
-                state={visibleSchedule}
-                selection={selection}
-                conflicts={gridConflicts}
-                onSelectionChange={setSelection}
-                onApplyShift={applyShift}
-                onCopyValueTo={copyValueTo}
-                onFillRange={fillRange}
-                onCopyDay={copyDay}
-                onPasteDay={pasteDay}
-                onClearDay={clearDay}
-                onCopyWeek={copyWeek}
-                onPasteWeek={pasteWeek}
-                canPasteDay={clipboard?.kind === 'day'}
-                canPasteWeek={clipboard?.kind === 'week'}
-                onAddTechnician={addTechnician}
-                onEditTechnician={editTechnician}
-                onRemoveTechnician={removeTechnician}
-                serviceDeskN1={schedule.serviceDeskN1 ? {
-                  layer: n1Layer,
-                  rowsById: n1RowsById,
-                  legend: n1Codes,
-                  onUpdatePause: updateN1Pause,
-                  onUpdateShift: updateN1Shift,
-                } : undefined}
-              />
+              <>
+                <ScheduleGrid
+                  state={visibleSchedule}
+                  selection={selection}
+                  conflicts={gridConflicts}
+                  onSelectionChange={setSelection}
+                  onApplyShift={applyShift}
+                  onCopyValueTo={copyValueTo}
+                  onFillRange={fillRange}
+                  onCopyDay={copyDay}
+                  onPasteDay={pasteDay}
+                  onClearDay={clearDay}
+                  onCopyWeek={copyWeek}
+                  onPasteWeek={pasteWeek}
+                  canPasteDay={clipboard?.kind === 'day'}
+                  canPasteWeek={clipboard?.kind === 'week'}
+                  onAddTechnician={addTechnician}
+                  onEditTechnician={editTechnician}
+                  onRemoveTechnician={removeTechnician}
+                  serviceDeskN1={schedule.serviceDeskN1 ? {
+                    layer: n1Layer,
+                    rowsById: n1RowsById,
+                    legend: n1Codes,
+                    onUpdatePause: updateN1Pause,
+                    onUpdateShift: updateN1Shift,
+                  } : undefined}
+                />
+                {isSoc && <FolgaAccountingPanel state={visibleSchedule} />}
+              </>
             )}
             {showConflicts && (
               <div className="conflict-panel-wrap">

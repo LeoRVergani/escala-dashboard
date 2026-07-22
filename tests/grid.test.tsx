@@ -4,11 +4,11 @@ import userEvent from '@testing-library/user-event';
 import App from '../src/App';
 
 /** Sobe o App já com a demonstração carregada e devolve a grade. */
-async function renderWithDemo() {
+async function renderWithDemo(kind: RegExp = /SOC\/NOC/i) {
   const user = userEvent.setup();
   render(<App />);
   await user.click(screen.getByRole('button', { name: /test drive/i }));
-  await user.click(screen.getByRole('button', { name: /SOC\/NOC/i }));
+  await user.click(screen.getByRole('button', { name: kind }));
   await user.click(screen.getByRole('button', { name: /avançar/i }));
   await user.click(screen.getByRole('button', { name: /avançar/i }));
   await user.click(screen.getByRole('button', { name: /confirmar/i }));
@@ -29,6 +29,14 @@ const dayHeader = (grid: HTMLElement, day: number) => {
     .find((h) => new RegExp(`^${String(day).padStart(2, '0')}/\\d{2}(Dom|Seg|Ter|Qua|Qui|Sex|Sáb)$`).test(h.textContent ?? ''));
   if (!th) throw new Error(`Cabeçalho do dia ${day} não encontrado`);
   return th;
+};
+
+const folgaTotalFor = (who: RegExp) => {
+  const panel = screen.getByText('Contabilidade das folgas').closest('section');
+  if (!panel) throw new Error('Painel de contabilidade das folgas não encontrado');
+  const row = within(panel).getByRole('row', { name: who });
+  const cells = within(row).getAllByRole('cell');
+  return Number(cells[4].textContent);
 };
 
 describe('grade de escalas (via App)', () => {
@@ -65,6 +73,22 @@ describe('grade de escalas (via App)', () => {
     expect(within(legend).queryByRole('button', { name: /^F · Folga$/ })).not.toBeInTheDocument();
     expect(within(legend).queryByRole('button', { name: /^FE · Férias$/ })).not.toBeInTheDocument();
     expect(within(legend).queryByRole('button', { name: /^AF · Afastamento$/ })).not.toBeInTheDocument();
+  });
+
+  it('mostra a contabilidade das folgas e atualiza após editar uma célula SOC', async () => {
+    const { user, grid } = await renderWithDemo();
+    expect(screen.getByText('Contabilidade das folgas')).toBeInTheDocument();
+
+    const before = folgaTotalFor(/Analista SOC\/NOC Fictício 06/);
+    fireEvent.click(cell(grid, /Analista SOC\/NOC Fictício 06/, 3), { ctrlKey: true });
+    await user.click(screen.getByRole('button', { name: /DU · DSR/ }));
+
+    expect(folgaTotalFor(/Analista SOC\/NOC Fictício 06/)).toBe(before + 1);
+  });
+
+  it('não mostra a contabilidade das folgas para escala não-SOC', async () => {
+    await renderWithDemo(/Service Desk N1/i);
+    expect(screen.queryByText('Contabilidade das folgas')).not.toBeInTheDocument();
   });
 
   it('altera uma célula pelo menu e desfaz/refaz', async () => {
