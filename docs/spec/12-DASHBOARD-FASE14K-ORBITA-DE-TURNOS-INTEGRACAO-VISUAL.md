@@ -238,3 +238,80 @@ Observações do mapeamento:
 - O Checkpoint 1 deve iniciar pela remoção segura da arquitetura de tema alternável
   (`theme.ts`, `AppShell` e testes), mantendo tokens escuros como fonte única e evitando
   flash claro.
+
+## Checkpoint 1 — Dark-only e fundação visual
+
+### Auditoria de tema
+
+Arquivos e consumidores encontrados antes da remoção:
+
+- `src/lib/theme.ts`: concentrava `ThemePreference = light | dark | system`,
+  `escala-dashboard:theme`, resolução via `matchMedia('(prefers-color-scheme: dark)')`
+  e aplicação de `data-theme`;
+- `src/App.tsx`: mantinha `themePreference`, `cycleTheme`, efeito de `matchMedia`
+  e repassava controle para o shell;
+- `src/components/AppShell.tsx`: renderizava o botão de tema com rótulos
+  "Tema: claro", "Tema: escuro" e "Tema: automático (segue o sistema)";
+- `src/styles.css`: declarava tokens claros em `:root`, tokens escuros em
+  `:root[data-theme="dark"]` e fallback por `@media (prefers-color-scheme: dark)`;
+- `tests/setup.ts` e `tests/AppShell.test.tsx`: continham suporte e props para o
+  modo automático/tema;
+- componentes flutuantes próprios (`.overlay`, `.modal`, `.modal-backdrop`,
+  `.popover`, `.toast`, diálogos Demo/Oficial, selects/inputs) consumiam os tokens
+  globais e precisavam continuar escuros após a mudança.
+
+Estratégia aplicada:
+
+- remover o estado e o controle visual de tema, sem alterar navegação, handlers,
+  autenticação, publicação, importação, Grade ou Planejador;
+- remover `src/lib/theme.ts` porque não havia outro consumidor legítimo após a
+  retirada do controle visível;
+- transformar `:root` na única fonte de tokens dark-only, com tokens novos
+  `--orbit-*` e aliases antigos (`--paper`, `--surface`, `--card`, `--ink`,
+  `--action` etc.) preservados para compatibilidade dos componentes existentes;
+- aplicar fundo escuro diretamente em `html`, `body` e `#root` no `index.html`,
+  além de `meta theme-color`, para reduzir risco de flash claro antes do React;
+- escurecer superfícies estruturais compartilhadas: shell, campos, selects,
+  popovers, overlays, modais, backdrops, toasts, barras, tabelas e painéis;
+- remover o selo fixo "Ambiente protegido" do shell porque ele não vinha de um
+  estado real de autorização. Estados reais de autenticação/autorização continuam
+  vindo de `FirebaseDashboardBar`, `LocalIdentityBar` e hooks existentes.
+
+Compatibilidade:
+
+- `Modo compacto`, sidebar recolhível, menu móvel, topbar recolhível, permissões de
+  navegação e rotas/seções por estado local permanecem inalterados;
+- cores semânticas de códigos de turno/situação continuam ligadas a tokens/código
+  existente e não mudam significado neste checkpoint;
+- não foram adicionadas dependências, roteador, Tailwind, Radix, shadcn, wouter ou
+  dados do protótipo.
+
+Rollback:
+
+- revertendo o commit do Checkpoint 1 retorna o controle de tema anterior; não há
+  migração de dados, Firestore ou contrato remoto.
+
+Riscos e dívida visual:
+
+- algumas cores semânticas antigas de células N1/SOC ainda usam tons claros por
+  representarem códigos de turno/situação; o checkpoint 4 deve migrá-las para a
+  linguagem final da Grade/Planejador sem alterar o significado dos códigos;
+- a validação Chromium deve confirmar ausência de flash claro, pois testes unitários
+  cobrem fonte HTML/CSS, mas não capturam frames reais do navegador.
+
+Validação do checkpoint:
+
+- `npm run typecheck`: aprovado;
+- testes direcionados dark-only/shell/navegação/marca/PWA/versão/publicação/Grade/
+  Planejador: 10 arquivos, 55 testes aprovados;
+- `npm run test -- --fileParallelism=false`: 65 arquivos, 474 testes aprovados.
+  A primeira execução paralela da suíte teve um timeout isolado em
+  `grid.test.tsx`; o teste passou isolado e voltou a passar dentro da suíte com
+  menor paralelismo, sem alteração de teste;
+- `npm run build`: aprovado, mantendo apenas o aviso conhecido de chunk grande do
+  Vite;
+- `git diff --check`: aprovado;
+- Chromium real: bloqueado no ambiente local desta execução por ausência de
+  `chromium`, `chromium-browser`, `google-chrome`, Playwright ou Puppeteer no
+  projeto/PATH. A conclusão visual definitiva continua condicionada a essa
+  validação em navegador real.

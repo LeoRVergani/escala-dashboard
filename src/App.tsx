@@ -95,7 +95,6 @@ import {
   storeUiCompact,
   type AppSection,
 } from './lib/navigation';
-import { applyTheme, loadStoredTheme, nextTheme, storeTheme } from './lib/theme';
 import { useLocalIdentity } from './hooks/useLocalIdentity';
 
 const APP_VERSION = packageJson.version;
@@ -264,7 +263,6 @@ export default function App() {
   const [activeSection, setActiveSection] = useState<AppSection>(() => loadStoredSection());
   const [navCollapsed, setNavCollapsed] = useState(() => loadStoredNavCollapsed());
   const [uiCompact, setUiCompact] = useState(() => loadStoredUiCompact());
-  const [themePreference, setThemePreference] = useState(() => loadStoredTheme());
   const localIdentity = useLocalIdentity();
   const devLocalSession = useDevLocalSession();
   const [officialPublishResult, setOfficialPublishResult] = useState<{ revision: number } | null>(null);
@@ -361,25 +359,6 @@ export default function App() {
     setActiveSection(section);
     storeSection(section);
   }, []);
-
-  const cycleTheme = useCallback(() => {
-    setThemePreference((prev) => {
-      const next = nextTheme(prev);
-      storeTheme(next);
-      applyTheme(next);
-      return next;
-    });
-  }, []);
-
-  useEffect(() => {
-    applyTheme(themePreference);
-    if (themePreference !== 'system' || typeof window.matchMedia !== 'function') return;
-    const media = window.matchMedia('(prefers-color-scheme: dark)');
-    if (!media) return;
-    const onChange = () => applyTheme('system');
-    media.addEventListener('change', onChange);
-    return () => media.removeEventListener('change', onChange);
-  }, [themePreference]);
 
   const isSoc = Boolean(schedule?.visualGrouping === 'operational-shift' && !schedule.serviceDeskN1 && schedule.viewType !== 'oncall');
 
@@ -1381,8 +1360,6 @@ export default function App() {
         onToggleNavCollapsed={() => setNavCollapsed((prev) => { const next = !prev; storeNavCollapsed(next); return next; })}
         uiCompact={uiCompact}
         onToggleUiCompact={() => setUiCompact((prev) => { const next = !prev; storeUiCompact(next); return next; })}
-        themePreference={themePreference}
-        onCycleTheme={cycleTheme}
         sectionState={sectionState}
         showAdminSection={firebaseDashboard.user?.isSystemAdmin === true || firebaseDashboard.user?.role === 'SCHEDULE_ADMIN' || devLocalSession.active}
         identityBar={(

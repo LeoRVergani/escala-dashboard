@@ -21,6 +21,12 @@
   - adiciona `manifest.webmanifest`, links de favicon/apple/PWA em `index.html`
     e teste para garantir que os ícones apontam para assets locais versionados,
     sem referência a `/manus-storage/`.
+  - **Checkpoint 1 — dark-only**: remove o ciclo claro/escuro/automático e o
+    controle de tema da navegação, elimina `src/lib/theme.ts`, fixa fundo escuro
+    antes da inicialização do React (`index.html`), centraliza tokens Órbita em
+    `src/styles.css`, escurece superfícies estruturais compartilhadas (shell,
+    modais, popovers, campos, barras, tabelas e overlays) e adiciona testes de
+    regressão para impedir retorno do tema claro.
 
 ## 1.15.3 — 22/07/2026
 

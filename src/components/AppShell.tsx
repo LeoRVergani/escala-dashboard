@@ -1,8 +1,7 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { APP_SECTIONS, type AppSection } from '../lib/navigation';
-import type { ThemePreference } from '../lib/theme';
 import { Brand } from './Brand';
-import { CloseIcon, CollapseLeftIcon, CollapseRightIcon, MenuIcon, MoonIcon, SECTION_ICONS, SunIcon, SystemThemeIcon } from './icons';
+import { CloseIcon, CollapseLeftIcon, CollapseRightIcon, MenuIcon, SECTION_ICONS } from './icons';
 
 export interface AppShellSectionState {
   disabled?: boolean;
@@ -17,8 +16,6 @@ interface AppShellProps {
   onToggleNavCollapsed: () => void;
   uiCompact: boolean;
   onToggleUiCompact: () => void;
-  themePreference: ThemePreference;
-  onCycleTheme: () => void;
   sectionState?: Partial<Record<AppSection, AppShellSectionState>>;
   showAdminSection?: boolean;
   identityBar?: ReactNode;
@@ -28,17 +25,6 @@ interface AppShellProps {
 }
 
 const TOPBAR_COLLAPSED_KEY = 'escala-dashboard:topbar-collapsed';
-
-const THEME_ICON: Record<ThemePreference, typeof SunIcon> = {
-  light: SunIcon,
-  dark: MoonIcon,
-  system: SystemThemeIcon,
-};
-const THEME_LABEL: Record<ThemePreference, string> = {
-  light: 'Tema: claro',
-  dark: 'Tema: escuro',
-  system: 'Tema: automático (segue o sistema)',
-};
 
 /**
  * Casca de navegação da FASE 14E: substitui a antiga página única por barra lateral
@@ -54,8 +40,6 @@ export function AppShell({
   onToggleNavCollapsed,
   uiCompact,
   onToggleUiCompact,
-  themePreference,
-  onCycleTheme,
   sectionState,
   showAdminSection = false,
   identityBar,
@@ -67,7 +51,6 @@ export function AppShell({
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const [showBackToTop, setShowBackToTop] = useState(false);
-  const ThemeIcon = THEME_ICON[themePreference];
 
   const toggleTopBarCollapsed = () => {
     setTopBarCollapsed((prev) => {
@@ -78,7 +61,7 @@ export function AppShell({
   };
 
   return (
-    <div className={`shell${navCollapsed ? ' nav-collapsed' : ''}${uiCompact ? ' ui-compact' : ''}`}>
+    <div className={`shell shell--orbit-dark${navCollapsed ? ' nav-collapsed' : ''}${uiCompact ? ' ui-compact' : ''}`}>
       <button
         type="button"
         className="shell-mobile-nav-toggle"
@@ -142,18 +125,10 @@ export function AppShell({
           })}
         </div>
         <div className="shell-nav-footer">
-          <button type="button" className="shell-theme-toggle" onClick={onCycleTheme} title={THEME_LABEL[themePreference]}>
-            <ThemeIcon />
-            <span>{THEME_LABEL[themePreference]}</span>
-          </button>
           <label className="shell-ui-compact-toggle">
             <input type="checkbox" checked={uiCompact} onChange={onToggleUiCompact} />
             <span>Modo compacto</span>
           </label>
-          <div className="shell-protection-seal" aria-label="Ambiente protegido">
-            <strong>Ambiente protegido</strong>
-            <span>Conexão segura com o Escala ICI</span>
-          </div>
           {footer}
         </div>
       </nav>

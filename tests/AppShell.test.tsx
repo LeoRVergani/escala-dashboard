@@ -16,8 +16,6 @@ function renderShell(overrides: Partial<Parameters<typeof AppShell>[0]> = {}) {
       onToggleNavCollapsed={onToggleNavCollapsed}
       uiCompact={false}
       onToggleUiCompact={onToggleUiCompact}
-      themePreference="light"
-      onCycleTheme={vi.fn()}
       topBar={<div>topo</div>}
       {...overrides}
     >
@@ -70,11 +68,24 @@ describe('AppShell — navegação principal (FASE 14E)', () => {
     expect(container.querySelector('.shell')).toHaveClass('ui-compact');
   });
 
+  it('marca o shell com a fundação dark-only Órbita de Turnos', () => {
+    const { container } = renderShell();
+    expect(container.querySelector('.shell')).toHaveClass('shell--orbit-dark');
+  });
+
   it('chama onToggleUiCompact ao marcar a caixa "Modo compacto"', async () => {
     const user = userEvent.setup();
     const { onToggleUiCompact } = renderShell();
     await user.click(screen.getByLabelText('Modo compacto'));
     expect(onToggleUiCompact).toHaveBeenCalled();
+  });
+
+  it('não expõe seletor de tema no shell dark-only', () => {
+    renderShell();
+
+    expect(screen.queryByRole('button', { name: /tema/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/tema:\s*claro/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/automático/i)).not.toBeInTheDocument();
   });
 
   it('mostra o botão de voltar ao topo somente depois de rolar o conteúdo', () => {
