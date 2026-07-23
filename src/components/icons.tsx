@@ -71,6 +71,11 @@ export const OfficialIcon = (props: IconProps) => base(
   props,
 );
 
+export const ShieldIcon = (props: IconProps) => base(
+  <path d="M12 3 4 6.5v4c0 5 3.4 8.6 8 10.5 4.6-1.9 8-5.5 8-10.5v-4L12 3Z" />,
+  props,
+);
+
 export const StatusIcon = (props: IconProps) => base(
   <>
     <path d="M3.5 19.5h17" />

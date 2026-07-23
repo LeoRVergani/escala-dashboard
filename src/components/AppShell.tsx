@@ -1,6 +1,7 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { APP_SECTIONS, type AppSection } from '../lib/navigation';
 import type { ThemePreference } from '../lib/theme';
+import { Brand } from './Brand';
 import { CloseIcon, CollapseLeftIcon, CollapseRightIcon, MenuIcon, MoonIcon, SECTION_ICONS, SunIcon, SystemThemeIcon } from './icons';
 
 export interface AppShellSectionState {
@@ -97,7 +98,7 @@ export function AppShell({
         aria-orientation="vertical"
       >
         <div className="shell-nav-head">
-          <span className="shell-nav-brand">Painel de Escalas</span>
+          <Brand compact={navCollapsed} />
           <button
             type="button"
             className="shell-nav-collapse-btn"
@@ -149,6 +150,10 @@ export function AppShell({
             <input type="checkbox" checked={uiCompact} onChange={onToggleUiCompact} />
             <span>Modo compacto</span>
           </label>
+          <div className="shell-protection-seal" aria-label="Ambiente protegido">
+            <strong>Ambiente protegido</strong>
+            <span>Conexão segura com o Escala ICI</span>
+          </div>
           {footer}
         </div>
       </nav>

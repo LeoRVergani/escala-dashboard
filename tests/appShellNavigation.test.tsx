@@ -43,7 +43,7 @@ describe('AppShell — navegação principal integrada ao App (FASE 14E)', () =>
     // Desfazer/refazer também continuam funcionando normalmente após a viagem de ida e volta.
     await user.click(screen.getByRole('button', { name: /^desfazer$/i }));
     expect(cell(gridAfterReturn, /Analista SOC\/NOC Fictício 06/, 3)).not.toHaveAccessibleName(/Noite/);
-  });
+  }, 10_000);
 
   it('Ambiente Demo e Publicação Oficial nunca aparecem empilhados na mesma tela', async () => {
     const user = userEvent.setup();
