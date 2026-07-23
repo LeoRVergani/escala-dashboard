@@ -172,3 +172,69 @@ Após interrupção do trabalho inicial, o checkpoint pendente foi revisado e fe
 - manifesto Web/PWA local e teste `tests/pwaManifest.test.ts`;
 - atualização do `CHANGELOG.md` para `1.16.0`;
 - correção do teste de diagnóstico para a nomenclatura final "Ambiente de Demonstração".
+
+## Continuação registrada em 23/07/2026 — Checkpoint 0
+
+Baseline da continuação confirmado antes de qualquer nova alteração funcional:
+
+- raiz Git: `/home/lvergani/Documentos/Projetos/escala-dashboard`;
+- branch: `feature/fase-14k-dashboard-orbit-ui-integration`;
+- upstream: `origin/feature/fase-14k-dashboard-orbit-ui-integration`;
+- HEAD inicial: `98468da742813e9abc4b74cadcf7aa9839c5d94a`;
+- divergência com upstream: `0 0`;
+- árvore limpa antes da edição desta spec;
+- versão: `1.16.0`;
+- commits 14K presentes: `3421b68`, `aec27fe`, `98468da`;
+- protótipo localizado em `/home/lvergani/Downloads/escala-ici-redesign`;
+- ZIP original localizado em `/home/lvergani/Downloads/escala-ici-redesign.zip`;
+- símbolo obrigatório localizado em `/home/lvergani/Downloads/escala-ici-mark_f99b5596.webp`;
+- scripts confirmados em `package.json`: `dev`, `build`, `preview`, `test`,
+  `test:watch`, `server:dev`, `server:start`, `typecheck`, `check`,
+  `test:rules`, `fixtures`, `analyze`, `demo:sync`.
+
+Baseline executado nesta continuação:
+
+- `npm run typecheck`: aprovado;
+- `npm run test`: aprovado, 64 arquivos / 468 testes;
+- `npm run build`: aprovado, com aviso conhecido de chunk Vite > 500 kB;
+- `git diff --check`: aprovado.
+
+### Matriz de implantação visual
+
+| Tela do protótipo | Componente real alvo | Fonte de dados real | Ações reais conectadas | Estados obrigatórios | Teste associado | Status |
+|---|---|---|---|---|---|---|
+| `Home.tsx` — entrada "Gestão de escalas, sem desvios" | `App.tsx` antes de autenticação, `FirebaseDashboardBar`, `LocalIdentityBar`, futuro `LoginView` extraído | `useFirebaseDashboard`, `signInWithMicrosoft`, `useDevLocalSession`, `useLocalIdentity` | Entrar com Microsoft, sessão local de desenvolvimento autorizada, sair, restauração de sessão | carregando, erro auth, sem Firebase configurado, sessão expirada, teste recolhido | `Home.test.tsx`, `LocalIdentityBar-devSession.test.tsx`, `server-devLogin.test.ts`, novo teste dark-only | Parcial: marca/shell existem; visual de entrada ainda não transplantado |
+| `Teams.tsx` — Minhas equipes | `Home.tsx`, `App.tsx`, futuro `TeamsPage`/`TeamCard` | `firebaseDashboard.teams`, `firebaseDashboard.selectedTeam`, `officialRemotePublication`, rascunho local | selecionar equipe, abrir escala, salvar rascunho, publicar quando autorizado, abrir trocas | carregando, vazio, erro, offline, sem autorização, rascunho presente | `Home.test.tsx`, `AppShell.test.tsx`, novos testes SOC/NOC separados | Parcial: nomenclatura ajustada; cards do protótipo ainda não conectados |
+| `ScalesPage.tsx` — visão geral de escalas | nova seção real `scales` ou composição em `Home.tsx`/`AppShell` | equipes autorizadas, `schedule`, `loadOfficialSchedule`, rascunhos locais, publicação ativa | buscar, filtrar, abrir equipe, continuar rascunho, criar/importar | carregando, vazio, erro, offline, sem autorização | novo teste de navegação/lista de escalas | Pendente |
+| `TeamPage.tsx` — página da equipe | futuro `TeamOverviewPage`, `HomeSummary`, `FirebaseDashboardBar`, `ScheduleTemplateWizard` | equipe selecionada, rascunho (`storage.ts`), publicação ativa, período (`dates.ts`), contagens de `ScheduleState` | abrir escala atual, preparar próximo período, continuar/descartar rascunho, abrir modal de início | rascunho, publicada, a preparar, erro, sem autorização | `officialScheduleReloadDraft.test.tsx`, novo teste de modal de início | Pendente |
+| Modal "Como você deseja começar?" | novo `StartScheduleDialog` ou adaptação de `ScheduleTemplateWizard`/`ImportWizard` | equipe atual, templates (`scheduleCatalog.ts`), permissões | importar XLS/XLSX, criar no Dashboard, cancelar, devolver foco | aberto/fechado, foco inicial, escape, erro de permissão | novo teste de foco/teclado do diálogo | Pendente |
+| `ImportPage.tsx` — importação | `ImportWizard.tsx`, `App.openFile`, `parser.ts`, `analyzeWorkbook`, `buildSchedule` | arquivo real XLS/XLSX, `WorkbookAnalysis`, equipe selecionada, `onCallGroups` | selecionar/arrastar arquivo, analisar, bloquear erro impeditivo, avançar para revisão | pronto, lendo real, carregado, aviso, erro impeditivo, divergência de equipe | `parser.test.ts`, `real-layouts.test.ts`, novos testes de UI de importação | Pendente; protótipo contém `simulateRead()` e não deve ser copiado |
+| `ReviewPage.tsx` — revisar escala | `ScheduleGrid.tsx`, `SocPlanner.tsx`, `ConflictAlertsPanel.tsx`, `FolgaAccountingPanel.tsx`, `OnCallEditor.tsx` | `history.state` (`ScheduleState`), `detectConflicts`, `folgaAccounting`, `onCall` | editar célula, multiseleção, edição em lote, undo/redo, salvar, exportar, alternar Grade/Planejador | rascunho, salvo, erro, alertas, seleção ativa, sem escala | `grid.test.tsx`, `soc-planner.test.ts`, `soc-planner-navigation.test.tsx`, `folgaAccounting.test.ts`, `oncall-ui.test.tsx` | Parcial funcional; visual completo pendente |
+| Grade do protótipo | `ScheduleGrid.tsx`, `CellMenu.tsx` | `ScheduleState.cells`, `serviceDeskN1`, tokens de `scheduleTokens.ts` | teclado, menu de célula, copy/paste dia/semana, add/remover técnico, exportar | seleção, menu, fim de semana, situações, erro, vazio | `grid.test.tsx`, `soc-status-ui.test.tsx`, `scheduleTokens.test.ts` | Pendente visual; função preservada |
+| Planejador do protótipo | `SocPlanner.tsx`, `useMiddleMouseHorizontalPan` | mesma `ScheduleState` da Grade, `socPlanner.ts` | drag-and-drop, mover/remover atribuição, rolagem sincronizada, modo compacto | seleção, arraste, alerta, vazio, somente SOC/NOC | `soc-planner.test.ts`, `soc-planner-navigation.test.tsx`, `appShellNavigation.test.tsx` | Pendente visual; função preservada |
+| Modelos SOC/NOC/Plantão/Service Desk | `ScheduleTemplateWizard`, `scheduleFactories.ts`, `scheduleCatalog.ts`, `OnCallEditor`, `ScheduleGrid` N1 | templates reais, fixtures sintéticas, parser real, grupos de plantão | criar modelo, importar, editar, contabilizar, exportar | tipo incompatível, vazio, alertas por regra, grupo ausente | `scheduleFactories.test.ts`, `oncall.test.ts`, `n1-ui.test.tsx`, `real-layouts.test.ts` | Parcial: SOC/NOC nomenclatura local iniciada; visual pendente |
+| Painel lateral de alertas | `ConflictAlertsPanel.tsx`, parser warnings, validação oficial | `detectConflicts`, `WorkbookAnalysis`, validação servidor | ir para membro/data quando possível, fechar/abrir painel | erro, aviso, informação, vazio | `grid.test.tsx`, `soc-status-ui.test.tsx`, novos testes de alerta navegável | Pendente visual |
+| `PublishPage.tsx` — conferir publicação | substituir apresentação visual de `OfficialPublicationWizard.tsx` preservando hooks | `officialPackage`, `useOfficialRemotePublication`, `buildOfficialPackageFromSchedule`, `eligibleOfficialMembers`, `firebaseDashboard.user` | validar escala, conferir alterações, publicar apenas quando autorizado, recarregar revisão | validação ok, erro impeditivo, offline, sem autorização, conflito de revisão, escrita desligada | `OfficialPublicationWizard.test.tsx`, `OfficialPublicationPanel.test.tsx`, `server-publish-official-dryrun.test.ts`, `server-officialPublish-auth.test.ts` | Pendente: textos iniciados; wizard visual ainda tem 8 etapas técnicas |
+| Modal de confirmação | `OfficialPublishDialog.tsx`, `PublicationDialog.tsx`, futuro `ConfirmationDialog` comum | preview/publication package real, confirmação textual, permissões | cancelar, confirmar, bloquear escrita desligada, manter histórico | aberto/fechado, busy, erro, bloqueado | `demoPublicationRemoteDialogs.test.tsx`, `OfficialPublicationPanel.test.tsx` | Pendente visual |
+| `SuccessPage.tsx` — publicação concluída | etapa final de `OfficialPublicationWizard`, resultado de `publishStructuredSchedule`/backend | `publishResult`, revisão, período, equipe, pacote publicado | abrir escala, baixar XLS, voltar para equipes, detalhes técnicos recolhidos | sucesso real, falha, conflito, técnico recolhido | `OfficialPublicationWizard.test.tsx`, novos testes de sucesso sem falso positivo | Pendente |
+| `SwapsPage.tsx` — solicitações de troca | `SwapRequestsDialog.tsx`, `swapRequestsRepository.ts`, seção dedicada futura | `loadSwapRequests`, `decideSwapRequest`, usuário/equipe autorizada | aprovar/recusar conforme papel, retry, fechar | pendente, aguardando técnico, aguardando gestor, aprovada, recusada, concluída, erro, offline, vazio | novos testes UI; cobertura de repositório existente a ampliar | Pendente visual e seção dedicada |
+| `HistoryPage.tsx` — histórico | seção `status`, `useDemoRemotePublication`, `useOfficialRemotePublication`, `schedulePublishRepository`/backend | status oficial/demo, revisão ativa, publication records disponíveis | baixar XLS real quando disponível, abrir detalhes, recarregar | carregando, vazio, erro, offline, sem autorização | `useOfficialRemotePublication.test.ts`, `server-officialSchedule.test.ts`, novos testes de timeline | Pendente visual; status atual ainda técnico |
+| Perfil/preferências | `AppShell.tsx`, `FirebaseDashboardBar`, `LocalIdentityBar` | usuário Firebase/dev session, papel, preferências locais sem tema | Meu perfil, Preferências sem tema, sair | menu aberto, sem sessão, sessão expirada | `AppShell.test.tsx`, novos testes dark-only e logout | Pendente; tema ainda alternável |
+| `AdminPage.tsx` — administração | `AdminUsersPanel.tsx`, `OnCallGroupsAdminPanel.tsx`, `TeamDialog`, `DiagnosticsPanel` | `firebaseDashboard.user`, admin routes, teams, onCallGroups | cadastrar gestores/equipes/grupos, recarregar, restringir por papel | sem autorização, carregando, erro, vazio, sucesso | `AdminUsersPanel.test.tsx`, `server-admin-routes.test.ts`, `server-verifyCaller.test.ts` | Pendente visual; autorização real preservada |
+| Diagnóstico técnico e Ambiente Demo | `DiagnosticsPanel.tsx`, `DemoPublicationPanel`, `DemoWorkspaceBanner`, `Demo*Dialog` | hooks demo/oficial, backend status, flags, workspace IDs, fixture demo | reset demo, validar/publicar demo em teste, mostrar flags só restrito | restrito, offline, erro, busy, vazio | `DemoPublicationPanel.test.tsx`, `demoWorkspace-ui.test.tsx`, `server-demo-reset.test.ts` | Pendente visual e restrição de navegação cotidiana |
+| Estados transversais | novos componentes `EmptyState`, `LoadingState`, `ErrorState`, `OfflineState`, `StatusBadge` | estado dos hooks reais e exceptions | retry, cancelar, confirmar, ocultar ação indisponível | carregando, vazio, sucesso, erro, offline, sem autorização, sessão expirada | novos testes de componentes e fluxos | Pendente |
+
+Observações do mapeamento:
+
+- `prototype-data.ts` contém equipes, histórico, trocas e contagens fixas; é proibido
+  migrar esses dados para o Dashboard real.
+- `ImportPage.tsx` do protótipo usa `simulateRead()`; só a composição visual é válida.
+- `ReviewPage.tsx`, `PublishPage.tsx`, `SuccessPage.tsx`, `HistoryPage.tsx` e
+  `SwapsPage.tsx` usam `toast`/estado local para ações que no Dashboard precisam chamar
+  handlers reais ou ficar ocultas quando indisponíveis.
+- O protótipo usa `wouter`, Tailwind, Radix/shadcn e `lucide-react`; a continuação deve
+  adaptar o visual à stack atual e só adicionar dependência se houver justificativa
+  técnica explícita.
+- O Checkpoint 1 deve iniciar pela remoção segura da arquitetura de tema alternável
+  (`theme.ts`, `AppShell` e testes), mantendo tokens escuros como fonte única e evitando
+  flash claro.
