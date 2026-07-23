@@ -1,5 +1,46 @@
 # Histórico de versões
 
+## 1.15.3 — 22/07/2026
+
+- **FASE 14I — padronização visual da escala SOC e contabilidade de folgas**
+  (spec `docs/spec/11-DASHBOARD-FASE14I-CONTRATO-LEGENDAS-CONTABILIDADE-FOLGAS.md`).
+  Nenhuma publicação real, nenhum deploy, nenhum XLS real versionado.
+  - novo módulo único `src/lib/scheduleTokens.ts`: 4 turnos (`Md`/`M`/`T`/`N`,
+    cores exatas do KMP `shiftColor()`) + 8 situações do XLS SOC
+    (`DU`/`DF`/`BH`/`AN`/`X`/`#`/`Folga`/`HE`, cores derivadas da referência
+    nomeada do prompt, método de derivação documentado na spec) — cada
+    token carrega código, nome, cor e `countsAsOff`;
+  - cores dos 4 turnos da grade SOC (`styles.css`) alinhadas às do KMP
+    (Madrugada/Manhã/Tarde já usavam tons divergentes; Noite já estava
+    correta); legenda da escala SOC substituída pela lista canônica de 12
+    códigos (turnos + situações), com os códigos genéricos antigos
+    (`MAD`/`F`/`FE`/`AF`) removidos **só dessa legenda** — continuam
+    valendo para COSI/Service Desk N1, que não mudam nesta fase. Clicar
+    num código de situação na legenda já aplica o texto específico à
+    célula (preenchimento em lote preserva o código desde já);
+  - novo painel **"Contabilidade das folgas"**, abaixo da grade SOC,
+    visualmente equivalente ao painel "Contabilidade dos plantões" do
+    COSI (mesmas classes CSS, cabeçalho, tabela rolável, ponto colorido
+    por colaborador, linha de totais, indicador de equidade não
+    bloqueante). Fonte reativa (`visibleSchedule`, o mesmo estado
+    memoizado que já alimenta a grade) — atualiza sozinho após
+    edição/undo/redo/importação/restauração, sem estado duplicado.
+    Conta só `DU`/`DF`/`Folga` (descanso operacional) no total
+    Domingo/Sábado/Semana; `AN`/`BH`/`X`/`#` ficam fora, conforme a spec.
+    Classificação sempre pela data real da coluna, nunca pelo código
+    isoladamente (testado com fixture adversarial: `DF` numa segunda-feira,
+    `DU` numa sexta-feira, ambos classificados corretamente pela data);
+  - 13 testes novos (12 tokens com valores exatos, `countsAsOff` correto,
+    normalização de texto, legenda SOC canônica, painel de folgas
+    reativo, ausência em escalas não-SOC). 447 → 460 testes;
+  - validação manual real no Chromium (Test Drive → SOC/NOC): legenda,
+    cores e painel confirmados visualmente; edição de célula atualiza o
+    painel imediatamente (Fictício 05: total 5→6 ao aplicar `DU`); testado
+    também contra build de produção (`vite build` + `preview`) para
+    descartar o bug pré-existente e já documentado do `useHistory` em
+    StrictMode (dev-only) — undo/redo reverte corretamente cela e painel
+    fora do modo dev, confirmando que não é regressão desta fase.
+
 ## 1.15.2 — 22/07/2026
 
 - **FASE 14H — fidelidade do parser oficial, grupos de plantão e contratos de
