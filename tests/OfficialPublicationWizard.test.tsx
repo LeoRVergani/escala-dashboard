@@ -93,13 +93,13 @@ describe('OfficialPublicationWizard (FASE 14E)', () => {
     render(<OfficialPublicationWizard {...baseProps({ officialPackage: demoTaintedPackage })} />);
 
     expect(screen.getByText(/nenhum membro ou equipe elegível/i)).toBeInTheDocument();
-    for (const label of ['Revisão dos dados', 'Vínculo corporativo', 'Dry-run', 'Revisão do plano', 'Confirmação']) {
+    for (const label of ['Revisão dos dados', 'Vínculo corporativo', 'Validar escala', 'Conferir alterações', 'Confirmação']) {
       expect(screen.getByRole('tab', { name: label })).toBeDisabled();
     }
-    // "Diagnósticos" e "Resultado" continuam acessíveis - são onde o usuário entende o
+    // "Diagnósticos" e "Publicação concluída" continuam acessíveis - são onde o usuário entende o
     // bloqueio ou confere o que já aconteceu, mesmo com as etapas anteriores inválidas.
     expect(screen.getByRole('tab', { name: 'Diagnósticos' })).toBeEnabled();
-    expect(screen.getByRole('tab', { name: 'Resultado' })).toBeEnabled();
+    expect(screen.getByRole('tab', { name: 'Publicação concluída' })).toBeEnabled();
   });
 
   it('link do botão "Ambiente Demo" na etapa 1 quando nenhum pacote foi carregado', async () => {
@@ -120,7 +120,7 @@ describe('OfficialPublicationWizard (FASE 14E)', () => {
     expect(screen.queryByRole('option', { name: /demo/i })).not.toBeInTheDocument();
   });
 
-  it('a etapa "Dry-run" continua disponível mesmo com a flag de publicação desligada', async () => {
+  it('a etapa "Validar escala" continua disponível mesmo com a flag de publicação desligada', async () => {
     const user = userEvent.setup();
     const membership = cleanPackage.memberTeamMemberships[0];
     render(
@@ -132,7 +132,7 @@ describe('OfficialPublicationWizard (FASE 14E)', () => {
       />,
     );
 
-    await user.click(screen.getByRole('tab', { name: 'Dry-run' }));
+    await user.click(screen.getByRole('tab', { name: 'Validar escala' }));
     expect(screen.getByRole('button', { name: /executar dry-run/i })).toBeEnabled();
   });
 
@@ -163,11 +163,11 @@ describe('OfficialPublicationWizard (FASE 14E)', () => {
     expect(screen.getByRole('button', { name: 'Publicar oficialmente' })).toBeDisabled();
   });
 
-  it('a etapa "Resultado" mostra a revisão publicada quando publishResult está presente', async () => {
+  it('a etapa "Publicação concluída" mostra a revisão publicada quando publishResult está presente', async () => {
     const user = userEvent.setup();
     render(<OfficialPublicationWizard {...baseProps({ publishResult: { revision: 7 } })} />);
 
-    await user.click(screen.getByRole('tab', { name: 'Resultado' }));
+    await user.click(screen.getByRole('tab', { name: 'Publicação concluída' }));
     expect(screen.getByText(/publicado na revisão 7/i)).toBeInTheDocument();
   });
 
@@ -177,7 +177,7 @@ describe('OfficialPublicationWizard (FASE 14E)', () => {
 
     await user.click(screen.getByRole('tab', { name: 'Diagnósticos' }));
     const diagnosticsPanel = within(screen.getByRole('region', { name: 'Diagnósticos' }));
-    expect(diagnosticsPanel.getByText(/pertencem ao Ambiente Demo/i)).toBeInTheDocument();
+    expect(diagnosticsPanel.getByText(/pertencem ao Ambiente de Demonstração/i)).toBeInTheDocument();
     await user.click(diagnosticsPanel.getByRole('button', { name: /detalhes técnicos/i }));
     expect(diagnosticsPanel.getByText(/assertOfficialOnlyWritePlan/i)).toBeInTheDocument();
   });
@@ -192,7 +192,7 @@ describe('OfficialPublicationWizard (FASE 14E)', () => {
     });
     render(<OfficialPublicationWizard {...props} />);
 
-    await user.click(screen.getByRole('tab', { name: 'Resultado' }));
+    await user.click(screen.getByRole('tab', { name: 'Publicação concluída' }));
     expect(screen.getByText('Existe uma versão mais recente publicada desde que você carregou esta escala.')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Recarregar' }));
     expect(props.onReloadOfficialSchedule).toHaveBeenCalledTimes(1);

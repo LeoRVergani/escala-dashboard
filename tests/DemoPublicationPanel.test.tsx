@@ -95,7 +95,7 @@ describe('DemoPublicationPanel', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Publicar Ambiente de Demonstração' });
     expect(dialog).toBeInTheDocument();
-    expect(within(dialog).getByText('Times').nextSibling?.textContent).toBe(String(pkg.teams.length));
+    expect(within(dialog).getByText('Equipes').nextSibling?.textContent).toBe(String(pkg.teams.length));
     expect(within(dialog).getByText('Membros').nextSibling?.textContent).toBe(String(pkg.members.length));
     expect(within(dialog).getByText('Responsáveis').nextSibling?.textContent).toBe(String(pkg.teamManagerAssignments.length));
     expect(within(dialog).getByText('Atribuições').nextSibling?.textContent).toBe(String(pkg.scheduleAssignments.length));

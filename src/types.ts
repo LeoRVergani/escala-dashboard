@@ -105,7 +105,7 @@ export interface ScheduleState {
   sourceLabel?: string;
   isDemo?: boolean;
   origin?: 'import' | 'empty-template' | 'demo-template' | 'demo-workspace-package' | 'official-firebase' | 'manual';
-  /** Time do pacote Demo atualmente projetado na grade. */
+  /** Equipe do pacote Demo atualmente projetada na grade. */
   demoTeamId?: string;
   officialTeamId?: string;
   /** Organiza os colaboradores por turno predominante no período (uso do SOC). */

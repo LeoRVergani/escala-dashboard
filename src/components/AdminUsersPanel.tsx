@@ -202,7 +202,7 @@ export function AdminUsersPanel({ user, teams, onCallGroups, onReloadOnCallGroup
                   <tr>
                     <th>Login</th>
                     <th>Papel</th>
-                    <th>Times</th>
+                    <th>Equipes</th>
                     <th>Ativo</th>
                     <th>Concedido por</th>
                     <th>Concedido em</th>
@@ -265,7 +265,7 @@ export function AdminUsersPanel({ user, teams, onCallGroups, onReloadOnCallGroup
             Acesso ativo
           </label>
           <fieldset className="admin-users-team-fieldset" disabled={form.role !== 'SCHEDULE_ADMIN'}>
-            <legend>Times administrados</legend>
+            <legend>Equipes administradas</legend>
             {teams.map((team) => (
               <label key={team.id} className="settings-toggle">
                 <input
@@ -276,7 +276,7 @@ export function AdminUsersPanel({ user, teams, onCallGroups, onReloadOnCallGroup
                 {team.name}
               </label>
             ))}
-            {teams.length === 0 && <p className="diagnostics-empty">Nenhum time disponível para seleção.</p>}
+            {teams.length === 0 && <p className="diagnostics-empty">Nenhuma equipe disponível para seleção.</p>}
           </fieldset>
           <div className="official-publication-actions">
             <button type="submit" className="btn btn-primary" disabled={saving}>

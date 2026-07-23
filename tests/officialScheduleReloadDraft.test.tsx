@@ -135,8 +135,8 @@ function mockOfficialScheduleApi(packages: DemoPublicationPackage[]) {
 }
 
 async function loadOfficialSchedule(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('tab', { name: 'Publicação Oficial' }));
-  await user.type(screen.getByLabelText('Time oficial'), 'team-oficial-soc');
+  await user.click(screen.getByRole('tab', { name: 'Publicar escala' }));
+  await user.type(screen.getByLabelText('Equipe oficial'), 'team-oficial-soc');
   await user.click(screen.getByRole('button', { name: /carregar escala oficial ativa/i }));
   await waitFor(() => expect(scheduleFetchCalls()).toHaveLength(1));
   expect(screen.getAllByText(/escala oficial carregada da revisão 3/i).length).toBeGreaterThan(0);
@@ -162,7 +162,7 @@ async function editFirstCellToNoite(user: ReturnType<typeof userEvent.setup>) {
 }
 
 async function clickOfficialLoadAgain(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(screen.getByRole('tab', { name: 'Publicação Oficial' }));
+  await user.click(screen.getByRole('tab', { name: 'Publicar escala' }));
   await user.click(screen.getByRole('button', { name: /carregar escala oficial ativa/i }));
 }
 

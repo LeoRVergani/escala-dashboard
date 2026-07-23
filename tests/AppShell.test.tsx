@@ -41,12 +41,12 @@ describe('AppShell — navegação principal (FASE 14E)', () => {
 
   it('desabilita item de navegação com explicação (title) quando a seção não está disponível', () => {
     renderShell({
-      sectionState: { planner: { disabled: true, reason: 'Disponível apenas para escalas SOC/NOC rotativas.' } },
+      sectionState: { planner: { disabled: true, reason: 'Disponível apenas para escalas 6x1 rotativas (SOC ou NOC).' } },
     });
 
     const plannerTab = screen.getByRole('tab', { name: 'Planejador' });
     expect(plannerTab).toBeDisabled();
-    expect(plannerTab).toHaveAttribute('title', 'Disponível apenas para escalas SOC/NOC rotativas.');
+    expect(plannerTab).toHaveAttribute('title', 'Disponível apenas para escalas 6x1 rotativas (SOC ou NOC).');
   });
 
   it('mostra um badge no item de navegação quando a seção tem estado ativo', () => {

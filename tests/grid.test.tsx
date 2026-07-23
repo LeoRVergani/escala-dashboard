@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import App from '../src/App';
 
 /** Sobe o App já com a demonstração carregada e devolve a grade. */
-async function renderWithDemo(kind: RegExp = /SOC\/NOC/i) {
+async function renderWithDemo(kind: RegExp = /SOC ou NOC/i) {
   const user = userEvent.setup();
   render(<App />);
   await user.click(screen.getByRole('button', { name: /test drive/i }));
@@ -43,8 +43,8 @@ describe('grade de escalas (via App)', () => {
   it('carrega a demonstração com aviso de dados fictícios', async () => {
     const { grid } = await renderWithDemo();
     expect(screen.getAllByText(/dados fictícios/i).length).toBeGreaterThan(0);
-    expect(within(grid).getByText(/Analista SOC\/NOC Fictício 01/)).toBeInTheDocument();
-    expect(within(grid).getByText(/Analista SOC\/NOC Fictício 06/)).toBeInTheDocument();
+    expect(within(grid).getByText(/Analista SOC Fictício 01/)).toBeInTheDocument();
+    expect(within(grid).getByText(/Analista SOC Fictício 06/)).toBeInTheDocument();
   });
 
   it('mostra a legenda SOC canônica em duas seções e na ordem da spec', async () => {
@@ -79,11 +79,11 @@ describe('grade de escalas (via App)', () => {
     const { user, grid } = await renderWithDemo();
     expect(screen.getByText('Contabilidade das folgas')).toBeInTheDocument();
 
-    const before = folgaTotalFor(/Analista SOC\/NOC Fictício 06/);
-    fireEvent.click(cell(grid, /Analista SOC\/NOC Fictício 06/, 3), { ctrlKey: true });
+    const before = folgaTotalFor(/Analista SOC Fictício 06/);
+    fireEvent.click(cell(grid, /Analista SOC Fictício 06/, 3), { ctrlKey: true });
     await user.click(screen.getByRole('button', { name: /DU · DSR/ }));
 
-    expect(folgaTotalFor(/Analista SOC\/NOC Fictício 06/)).toBe(before + 1);
+    expect(folgaTotalFor(/Analista SOC Fictício 06/)).toBe(before + 1);
   });
 
   it('não mostra a contabilidade das folgas para escala não-SOC', async () => {
@@ -94,32 +94,32 @@ describe('grade de escalas (via App)', () => {
   it('altera uma célula pelo menu e desfaz/refaz', async () => {
     const { user, grid } = await renderWithDemo();
 
-    await user.click(cell(grid, /Analista SOC\/NOC Fictício 06/, 3));
+    await user.click(cell(grid, /Analista SOC Fictício 06/, 3));
     const menu = await screen.findByRole('menu', { name: /turno da célula/i });
     await user.click(within(menu).getByRole('menuitem', { name: /Noite/ }));
-    expect(cell(grid, /Analista SOC\/NOC Fictício 06/, 3)).toHaveAccessibleName(/Noite/);
+    expect(cell(grid, /Analista SOC Fictício 06/, 3)).toHaveAccessibleName(/Noite/);
 
     await user.click(screen.getByRole('button', { name: /^desfazer$/i }));
-    expect(cell(grid, /Analista SOC\/NOC Fictício 06/, 3)).not.toHaveAccessibleName(/Noite/);
+    expect(cell(grid, /Analista SOC Fictício 06/, 3)).not.toHaveAccessibleName(/Noite/);
 
     await user.click(screen.getByRole('button', { name: /^refazer$/i }));
-    expect(cell(grid, /Analista SOC\/NOC Fictício 06/, 3)).toHaveAccessibleName(/Noite/);
+    expect(cell(grid, /Analista SOC Fictício 06/, 3)).toHaveAccessibleName(/Noite/);
   });
 
   it('aplica turno personalizado preservando o texto', async () => {
     const { user, grid } = await renderWithDemo();
-    await user.click(cell(grid, /Analista SOC\/NOC Fictício 03/, 5));
+    await user.click(cell(grid, /Analista SOC Fictício 03/, 5));
     const menu = await screen.findByRole('menu', { name: /turno da célula/i });
     await user.type(within(menu).getByRole('textbox', { name: /personalizado/i }), 'Treinamento');
     await user.click(within(menu).getByRole('button', { name: /^OK$/i }));
-    expect(cell(grid, /Analista SOC\/NOC Fictício 03/, 5)).toHaveAccessibleName(/Treinamento/);
+    expect(cell(grid, /Analista SOC Fictício 03/, 5)).toHaveAccessibleName(/Treinamento/);
   });
 
   it('copia um dia inteiro para outro dia', async () => {
     const { user, grid } = await renderWithDemo();
 
-    expect(cell(grid, /Analista SOC\/NOC Fictício 01/, 1)).toHaveAccessibleName(/Folga/);
-    expect(cell(grid, /Analista SOC\/NOC Fictício 02/, 1)).toHaveAccessibleName(/Madrugada/);
+    expect(cell(grid, /Analista SOC Fictício 01/, 1)).toHaveAccessibleName(/Folga/);
+    expect(cell(grid, /Analista SOC Fictício 02/, 1)).toHaveAccessibleName(/Madrugada/);
 
     await user.click(dayHeader(grid, 1));
     await user.click(await screen.findByRole('button', { name: /^copiar dia$/i }));
@@ -127,26 +127,26 @@ describe('grade de escalas (via App)', () => {
     await user.click(dayHeader(grid, 2));
     await user.click(await screen.findByRole('button', { name: /colar dia copiado/i }));
 
-    expect(cell(grid, /Analista SOC\/NOC Fictício 01/, 2)).toHaveAccessibleName(/Folga/);
-    expect(cell(grid, /Analista SOC\/NOC Fictício 02/, 2)).toHaveAccessibleName(/Madrugada/);
+    expect(cell(grid, /Analista SOC Fictício 01/, 2)).toHaveAccessibleName(/Folga/);
+    expect(cell(grid, /Analista SOC Fictício 02/, 2)).toHaveAccessibleName(/Madrugada/);
   });
 
   it('preenche uma seleção múltipla clicando na legenda', async () => {
     const { user, grid } = await renderWithDemo();
 
-    fireEvent.click(cell(grid, /Analista SOC\/NOC Fictício 01/, 20), { ctrlKey: true });
-    fireEvent.click(cell(grid, /Analista SOC\/NOC Fictício 01/, 21), { ctrlKey: true });
+    fireEvent.click(cell(grid, /Analista SOC Fictício 01/, 20), { ctrlKey: true });
+    fireEvent.click(cell(grid, /Analista SOC Fictício 01/, 21), { ctrlKey: true });
 
     await user.click(screen.getByRole('button', { name: /X · Férias/ }));
-    expect(cell(grid, /Analista SOC\/NOC Fictício 01/, 20)).toHaveAccessibleName(/Férias/);
-    expect(cell(grid, /Analista SOC\/NOC Fictício 01/, 21)).toHaveAccessibleName(/Férias/);
+    expect(cell(grid, /Analista SOC Fictício 01/, 20)).toHaveAccessibleName(/Férias/);
+    expect(cell(grid, /Analista SOC Fictício 01/, 21)).toHaveAccessibleName(/Férias/);
   });
 
   it('limpa a seleção com o botão da barra', async () => {
     const { user, grid } = await renderWithDemo();
-    fireEvent.click(cell(grid, /Analista SOC\/NOC Fictício 06/, 4), { ctrlKey: true });
+    fireEvent.click(cell(grid, /Analista SOC Fictício 06/, 4), { ctrlKey: true });
     await user.click(screen.getByRole('button', { name: /limpar seleção/i }));
-    expect(cell(grid, /Analista SOC\/NOC Fictício 06/, 4)).toHaveAccessibleName(/Vazio/);
+    expect(cell(grid, /Analista SOC Fictício 06/, 4)).toHaveAccessibleName(/Vazio/);
   });
 
   it('adiciona técnico informando apenas o login', async () => {
@@ -162,8 +162,8 @@ describe('grade de escalas (via App)', () => {
 
   it('remove técnico', async () => {
     const { user, grid } = await renderWithDemo();
-    await user.click(within(grid).getByRole('button', { name: /^remover Analista SOC\/NOC Fictício 09$/i }));
-    expect(within(grid).queryByText('Analista SOC/NOC Fictício 09')).not.toBeInTheDocument();
+    await user.click(within(grid).getByRole('button', { name: /^remover Analista SOC Fictício 09$/i }));
+    expect(within(grid).queryByText('Analista SOC Fictício 09')).not.toBeInTheDocument();
   });
 
   it('mostra painel de alertas da demonstração', async () => {

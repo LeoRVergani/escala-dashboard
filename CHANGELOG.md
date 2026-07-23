@@ -1,5 +1,27 @@
 # Histórico de versões
 
+## 1.16.0 — 23/07/2026
+
+- **FASE 14K — integração visual Órbita de Turnos, marca e nomenclatura**
+  (spec `docs/spec/12-DASHBOARD-FASE14K-ORBITA-DE-TURNOS-INTEGRACAO-VISUAL.md`).
+  Nenhuma publicação real no Firebase, nenhum deploy e nenhum XLS real versionado.
+  - adiciona a base visual Órbita de Turnos ao Dashboard funcional: fontes locais
+    Sora/IBM Plex Sans, tokens dark exatos do prompt, marca `Escala ICI` versionada
+    em `public/brand/`, favicon e ícones Web/PWA locais;
+  - adiciona `Brand`, `FlowSteps` e motivos operacionais (`ShiftRail`,
+    `DestinationSeal`) sem copiar `prototype-data.ts`, servidor do protótipo,
+    Manus runtime, `wouter`, Radix/shadcn ou dependências novas;
+  - inicia a limpeza de nomenclatura visível: `Gestor responsável`, `Equipe`,
+    `Cadastrar equipe`, `Publicar escala`, `Validar escala`, `Conferir alterações`
+    e `Histórico de publicações`; SOC e NOC deixam de aparecer como um destino
+    único no contexto local do gestor, preservando o template interno `SOC_NOC`;
+  - corrige a versão visual do cabeçalho: remove o literal `v1.14.0`, passa a
+    derivar de `package.json` e adiciona teste de regressão para impedir nova
+    divergência;
+  - adiciona `manifest.webmanifest`, links de favicon/apple/PWA em `index.html`
+    e teste para garantir que os ícones apontam para assets locais versionados,
+    sem referência a `/manus-storage/`.
+
 ## 1.15.3 — 22/07/2026
 
 - **FASE 14I — padronização visual da escala SOC e contabilidade de folgas**

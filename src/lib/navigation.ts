@@ -22,11 +22,11 @@ export interface AppSectionMeta {
 export const APP_SECTIONS: AppSectionMeta[] = [
   { key: 'home', label: 'Início', description: 'Visão geral e atalhos' },
   { key: 'import', label: 'Importar escala', description: 'Planilha XLS/XLSX' },
-  { key: 'planner', label: 'Planejador', description: 'Arrastar e soltar (SOC/NOC)' },
+  { key: 'planner', label: 'Planejador', description: 'Arrastar e soltar (escalas 6x1 rotativas)' },
   { key: 'grid', label: 'Grade', description: 'Grade mensal editável' },
   { key: 'demo', label: 'Ambiente Demo', description: 'Workspace demo-v1' },
-  { key: 'official', label: 'Publicação Oficial', description: 'Workspace ici-dev' },
-  { key: 'status', label: 'Histórico/Status', description: 'Backend e revisões' },
+  { key: 'official', label: 'Publicar escala', description: 'Workspace ici-dev' },
+  { key: 'status', label: 'Histórico de publicações', description: 'Backend e revisões' },
   { key: 'admin', label: 'Administração', description: 'Perfis administrativos' },
   { key: 'settings', label: 'Configurações', description: 'Preferências locais' },
 ];

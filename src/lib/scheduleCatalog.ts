@@ -15,9 +15,9 @@ export const SCHEDULE_TEMPLATES: ScheduleTemplateDefinition[] = [
   },
   {
     kind: 'soc-noc-6x1',
-    label: 'SOC/NOC — Escala 6x1',
-    shortLabel: 'SOC/NOC',
-    description: 'Modelo para escala 6x1 de operação SOC/NOC organizada por turnos operacionais.',
+    label: 'Escala 6x1 (SOC ou NOC)',
+    shortLabel: '6x1',
+    description: 'Modelo para escala 6x1 usado por SOC ou NOC, organizado por turnos operacionais.',
     periodStrategy: 'cycle-25-26',
     viewType: 'schedule',
     visualGrouping: 'operational-shift',

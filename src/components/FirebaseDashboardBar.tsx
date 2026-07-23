@@ -13,9 +13,9 @@ export function FirebaseDashboardBar(props: Props) {
     <span className="firebase-user">{props.loading ? 'Verificando acesso…' : props.user ? `Conectado: ${props.user.displayName ?? props.user.login}` : props.configured ? 'Não conectado' : 'Firebase não configurado'}</span>
     {props.devSessionActive && <span className="dev-session-badge">MODO DE TESTE</span>}
     {props.devSessionActive && props.devSessionLogin && <span className="dev-session-login">{props.devSessionLogin}</span>}
-    <label>Time
-      <select aria-label="Time selecionado" value={props.selectedTeamId} disabled={!props.user || !props.teams.length} onChange={(event) => props.onTeamChange(event.target.value)}>
-        {!props.teams.length && <option value="">Nenhum time disponível</option>}
+    <label>Equipe
+      <select aria-label="Equipe selecionada" value={props.selectedTeamId} disabled={!props.user || !props.teams.length} onChange={(event) => props.onTeamChange(event.target.value)}>
+        {!props.teams.length && <option value="">Nenhuma equipe disponível</option>}
         {props.teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
       </select>
     </label>
@@ -23,7 +23,7 @@ export function FirebaseDashboardBar(props: Props) {
     <button className="btn" disabled={!props.hasSchedule || !props.selectedTeamId} onClick={props.onSaveDraft}>Salvar rascunho</button>
     <button className="btn btn-primary" disabled={!props.canPublish} onClick={props.onPublish}>Publicar escala</button>
     <button className="btn" disabled={!props.user || !props.teams.length} onClick={props.onSwaps}>Trocas</button>
-    {props.user?.isSystemAdmin && <button className="btn" onClick={props.onManageTeams}>Times</button>}
+    {props.user?.isSystemAdmin && <button className="btn" onClick={props.onManageTeams}>Equipes</button>}
     {props.user ? <button className="btn" onClick={props.onLogout}>Sair</button> : <button className="btn" disabled={!props.configured} onClick={props.onLogin}>Entrar com Microsoft</button>}
     {props.error && <span className="firebase-error" role="alert">{props.error}</span>}
   </section>;

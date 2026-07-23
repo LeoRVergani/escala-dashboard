@@ -18,8 +18,8 @@ interface LocalIdentityBarProps {
 
 /**
  * Quem está operando o Dashboard agora (FASE 14E, adendo de UX). Sem MSAL ainda - só um
- * rótulo local (chefe do setor + time ativo) sempre visível no cabeçalho, para nunca
- * confundir com o seletor de time do Firebase (`FirebaseDashboardBar`, autenticado, usado
+ * rótulo local (`chefeName` + equipe ativa) sempre visível no cabeçalho, para nunca
+ * confundir com o seletor de equipe do Firebase (`FirebaseDashboardBar`, autenticado, usado
  * na publicação estruturada real). Quando o login Microsoft existir, este bloco deixa de
  * ser necessário e pode ser removido sem afetar nenhum outro fluxo - não há acoplamento.
  */
@@ -40,7 +40,7 @@ export function LocalIdentityBar({
   const [nameDraft, setNameDraft] = useState(identity.chefeName);
   const [showNewTeam, setShowNewTeam] = useState(identity.teams.length === 0);
   const [teamNameDraft, setTeamNameDraft] = useState('');
-  const [teamTypeDraft, setTeamTypeDraft] = useState<LocalTeamType>('SOC_NOC');
+  const [teamTypeDraft, setTeamTypeDraft] = useState<LocalTeamType>('SOC');
   const [devLoginDraft, setDevLoginDraft] = useState('');
 
   return (
@@ -58,7 +58,7 @@ export function LocalIdentityBar({
             }}
           >
             <label>
-              Chefe do setor
+              Gestor responsável
               <input
                 autoFocus
                 value={nameDraft}
@@ -70,7 +70,7 @@ export function LocalIdentityBar({
           </form>
         ) : (
           <span className="local-identity-summary">
-            <strong>Chefe do Setor:</strong> {identity.chefeName}
+            <strong>Gestor responsável:</strong> {identity.chefeName}
             <button type="button" className="link-btn" onClick={() => { setNameDraft(identity.chefeName); setEditingName(true); }}>
               editar
             </button>
@@ -79,10 +79,10 @@ export function LocalIdentityBar({
 
         {!editingName && (
           <span className="local-identity-team">
-            <strong>Time:</strong>
+            <strong>Equipe:</strong>
             {identity.teams.length > 0 && (
               <select
-                aria-label="Time ativo"
+                aria-label="Equipe ativa"
                 value={activeTeam?.id ?? ''}
                 onChange={(event) => onSetActiveTeam(event.target.value || null)}
               >
@@ -92,9 +92,9 @@ export function LocalIdentityBar({
                 ))}
               </select>
             )}
-            {identity.teams.length === 0 && <span className="muted">nenhum time criado ainda</span>}
+            {identity.teams.length === 0 && <span className="muted">nenhuma equipe cadastrada ainda</span>}
             <button type="button" className="link-btn" onClick={() => setShowNewTeam((prev) => !prev)}>
-              + novo time
+              + nova equipe
             </button>
           </span>
         )}
@@ -112,7 +112,7 @@ export function LocalIdentityBar({
           >
             <input
               value={teamNameDraft}
-              placeholder="Nome do time (ex.: SOC Plantão A)"
+              placeholder="Nome da equipe (ex.: SOC Plantão A)"
               onChange={(event) => setTeamNameDraft(event.target.value)}
             />
             <select value={teamTypeDraft} onChange={(event) => setTeamTypeDraft(event.target.value as LocalTeamType)}>
@@ -120,7 +120,7 @@ export function LocalIdentityBar({
                 <option key={value} value={value}>{label}</option>
               ))}
             </select>
-            <button type="submit" className="btn">Criar time</button>
+            <button type="submit" className="btn">Cadastrar equipe</button>
           </form>
         )}
 

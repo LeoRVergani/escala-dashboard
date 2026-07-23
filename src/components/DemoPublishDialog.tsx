@@ -31,7 +31,7 @@ export function DemoPublishDialog({
           <dt>Workspace</dt><dd>{draftPackage.workspace.workspaceId}</dd>
           <dt>Revisão ativa</dt><dd>{validation.currentActiveRevision}</dd>
           <dt>Próxima revisão</dt><dd>{validation.nextPublicationRevision}</dd>
-          <dt>Times</dt><dd>{draftPackage.teams.length}</dd>
+          <dt>Equipes</dt><dd>{draftPackage.teams.length}</dd>
           <dt>Membros</dt><dd>{draftPackage.members.length}</dd>
           <dt>Responsáveis</dt><dd>{draftPackage.teamManagerAssignments.length}</dd>
           <dt>Períodos</dt><dd>{draftPackage.schedulePeriods.length}</dd>

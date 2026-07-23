@@ -32,7 +32,7 @@ export function OfficialPublishDialog({
           <dt>Workspace</dt><dd>{officialPackage.workspace.workspaceId}</dd>
           <dt>Revisão ativa</dt><dd>{validation.currentActiveRevision}</dd>
           <dt>Próxima revisão</dt><dd>{validation.nextPublicationRevision}</dd>
-          <dt>Times</dt><dd>{officialPackage.teams.length}</dd>
+          <dt>Equipes</dt><dd>{officialPackage.teams.length}</dd>
           <dt>Membros</dt><dd>{officialPackage.members.length}</dd>
           <dt>Períodos</dt><dd>{officialPackage.schedulePeriods.length}</dd>
           <dt>Atribuições</dt><dd>{officialPackage.scheduleAssignments.length}</dd>

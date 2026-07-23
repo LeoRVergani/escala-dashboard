@@ -69,7 +69,7 @@ export function demoPackageToScheduleState(pkg: DemoPublicationPackage, teamId: 
 
   const team = pkg.teams.find((item) => item.id === teamId);
   if (!team) {
-    throw new Error(`Time de demonstração não encontrado: ${teamId}`);
+    throw new Error(`Equipe de demonstração não encontrada: ${teamId}`);
   }
 
   const periodDates = dateRange(period.startDate, period.endDate);

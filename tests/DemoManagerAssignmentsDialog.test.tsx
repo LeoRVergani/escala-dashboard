@@ -121,7 +121,7 @@ describe('DemoManagerAssignmentsDialog', () => {
   it('adiciona um novo responsável por seleção e salva o novo vínculo', async () => {
     const { user, onSave } = renderDialog();
 
-    await user.selectOptions(screen.getByLabelText('Time do novo responsável'), 'team-soc');
+    await user.selectOptions(screen.getByLabelText('Equipe do novo responsável'), 'team-soc');
     await user.selectOptions(screen.getByLabelText('Membro do novo responsável'), 'member-editor');
     await user.selectOptions(screen.getByLabelText('Papel do novo responsável'), 'SCHEDULE_EDITOR');
     await user.click(screen.getByRole('button', { name: 'Adicionar' }));
@@ -157,7 +157,7 @@ describe('DemoManagerAssignmentsDialog', () => {
   it('rejeita vínculo duplicado ativo sem duplicar a entrada', async () => {
     const { user } = renderDialog();
 
-    await user.selectOptions(screen.getByLabelText('Time do novo responsável'), 'team-soc');
+    await user.selectOptions(screen.getByLabelText('Equipe do novo responsável'), 'team-soc');
     await user.selectOptions(screen.getByLabelText('Membro do novo responsável'), 'member-manager');
     await user.selectOptions(screen.getByLabelText('Papel do novo responsável'), 'PRIMARY_MANAGER');
     await user.click(screen.getByRole('button', { name: 'Adicionar' }));
@@ -169,7 +169,7 @@ describe('DemoManagerAssignmentsDialog', () => {
   it('permite o mesmo responsável em um segundo time diferente', async () => {
     const { user } = renderDialog();
 
-    await user.selectOptions(screen.getByLabelText('Time do novo responsável'), 'team-sec');
+    await user.selectOptions(screen.getByLabelText('Equipe do novo responsável'), 'team-sec');
     await user.selectOptions(screen.getByLabelText('Membro do novo responsável'), 'member-manager');
     await user.selectOptions(screen.getByLabelText('Papel do novo responsável'), 'PRIMARY_MANAGER');
     await user.click(screen.getByRole('button', { name: 'Adicionar' }));

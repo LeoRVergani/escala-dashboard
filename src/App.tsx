@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type * as XLSX from 'xlsx';
+import packageJson from '../package.json';
 import {
   MONTHS_PT_TITLE,
   N1_EMAIL_GUARANTEE_CODES,
@@ -97,6 +98,8 @@ import {
 import { applyTheme, loadStoredTheme, nextTheme, storeTheme } from './lib/theme';
 import { useLocalIdentity } from './hooks/useLocalIdentity';
 
+const APP_VERSION = packageJson.version;
+
 interface PendingImport {
   wb: XLSX.WorkBook;
   analysis: WorkbookAnalysis;
@@ -166,21 +169,27 @@ function cellValueForSocLegendToken(token: ScheduleToken): CellValue {
 }
 
 /** Rótulo humano do tipo de escala para o resumo da Home (FASE 14E). */
-function scheduleTypeLabel(state: ScheduleState): string {
+function scheduleTypeLabel(state: ScheduleState, operationalTeamName?: string): string {
   if (state.viewType === 'oncall') return 'Plantão COSI';
   if (state.serviceDeskN1) return 'Service Desk N1 — Escala 6x1';
-  if (state.visualGrouping === 'operational-shift') return 'SOC/NOC — Escala 6x1';
+  if (state.visualGrouping === 'operational-shift') {
+    const name = operationalTeamName?.trim();
+    return name ? `${name} — Escala 6x1` : 'Escala 6x1 rotativa';
+  }
   return 'Escala';
 }
 
-function officialTeamFromSchedule(state: ScheduleState): OfficialImportTeamInput {
+function officialTeamFromSchedule(state: ScheduleState, operationalTeamName?: string): OfficialImportTeamInput {
   if (state.viewType === 'oncall') {
     return { name: 'Plantão COSI', hierarchy: 'PLANTAO_COSI' };
   }
   if (state.serviceDeskN1) {
     return { name: 'Service Desk N1', hierarchy: 'SERVICE_DESK_N1' };
   }
-  return { name: 'SOC/NOC', hierarchy: 'SOC_NOC' };
+  return {
+    name: operationalTeamName?.trim() || 'Equipe não identificada - selecione a equipe correta antes de publicar',
+    hierarchy: 'SOC_NOC',
+  };
 }
 
 function officialTeamFromOnCallTeam(team: Team): OfficialImportTeamInput {
@@ -246,7 +255,7 @@ export default function App() {
   const demoWorkspace = useDemoWorkspace();
   const schedule = history.state;
   // FASE 14E: sempre habilitados (não dependem mais de schedule.origin) - a Home e a seção
-  // Histórico/Status precisam do status do backend/Firebase Admin mesmo antes de qualquer
+  // Histórico de publicações precisa do status do backend/Firebase Admin mesmo antes de qualquer
   // workspace ser carregado, e a Publicação Oficial agora é uma seção própria, alcançável
   // sem passar pelo Ambiente Demo primeiro.
   const demoRemotePublication = useDemoRemotePublication(true);
@@ -647,7 +656,7 @@ export default function App() {
       : null;
     const pkg = buildOfficialPackageFromSchedule(
       state,
-      onCallContext?.team ?? officialTeamFromSchedule(state),
+      onCallContext?.team ?? officialTeamFromSchedule(state, firebaseDashboard.selectedTeam?.name),
       officialMembersFromSchedule(state),
       onCallContext?.group,
     );
@@ -658,7 +667,7 @@ export default function App() {
     setOfficialScheduleRevisionBase(null);
     setOfficialScheduleLoadResult(null);
     setOfficialPublishResult(null);
-  }, [resolveOfficialOnCallImport]);
+  }, [firebaseDashboard.selectedTeam, resolveOfficialOnCallImport]);
 
   const openOfficialFile = useCallback(
     async (file: File) => {
@@ -1290,10 +1299,13 @@ export default function App() {
       : N1_EMAIL_GUARANTEE_CODES;
 
   const officialEligibleCount = officialPackage ? eligibleOfficialMembers(officialPackage).length : 0;
+  const operationalScheduleTeamName = schedule?.demoTeamId
+    ? demoTeams.find((team) => team.id === schedule.demoTeamId)?.name
+    : firebaseDashboard.selectedTeam?.name;
 
   const homeSummary: HomeSummary = {
     hasSchedule: Boolean(schedule),
-    scheduleTypeLabel: schedule ? scheduleTypeLabel(schedule) : null,
+    scheduleTypeLabel: schedule ? scheduleTypeLabel(schedule, operationalScheduleTeamName) : null,
     periodLabel: schedule ? monthTitle : null,
     peopleCount: schedule?.technicians.length ?? 0,
     assignmentsCount: schedule ? countScheduleAssignments(schedule) : 0,
@@ -1318,7 +1330,7 @@ export default function App() {
     sectionState.grid = { disabled: true, reason: 'Carregue ou importe uma escala primeiro.' };
     sectionState.planner = { disabled: true, reason: 'Carregue ou importe uma escala primeiro.' };
   } else if (!isSoc) {
-    sectionState.planner = { disabled: true, reason: 'Disponível apenas para escalas SOC/NOC rotativas.' };
+    sectionState.planner = { disabled: true, reason: 'Disponível apenas para escalas 6x1 rotativas (SOC ou NOC).' };
   }
   if (schedule?.origin === 'demo-workspace-package') {
     sectionState.demo = { badge: 'ativo' };
@@ -1415,7 +1427,7 @@ export default function App() {
             <header className="topbar">
               <div className="brand">
                 Painel de Escalas
-                <small>v1.14.0 · Início → Importar → Planejador/Grade → Demo/Oficial</small>
+                <small>v{APP_VERSION} · Importar/Criar → Revisar → Publicar</small>
               </div>
               {schedule && (
                 <>
@@ -1875,7 +1887,7 @@ export default function App() {
                   onResetClick={() => setShowDemoRemoteResetDialog(true)}
                 />
                 <div className="demo-workspace-controls" aria-label="Controles do Ambiente de Demonstração">
-                  <div className="demo-workspace-tabs" role="tablist" aria-label="Times do Ambiente de Demonstração">
+                  <div className="demo-workspace-tabs" role="tablist" aria-label="Equipes do Ambiente de Demonstração">
                     {demoTeams.map((team) => (
                       <button
                         key={team.id}
@@ -1968,8 +1980,8 @@ export default function App() {
         )}
 
         {activeSection === 'status' && (
-          <div className="status-section" aria-label="Histórico e status remoto">
-            <h2>Histórico / Status</h2>
+          <div className="status-section" aria-label="Histórico de publicações">
+            <h2>Histórico de publicações</h2>
             <div className="status-grid">
               <section className="status-card">
                 <h3>Ambiente Demo — workspace demo-v1</h3>
@@ -1982,7 +1994,7 @@ export default function App() {
                 </dl>
               </section>
               <section className="status-card">
-                <h3>Publicação Oficial — workspace ici-dev</h3>
+                <h3>Publicação oficial</h3>
                 <dl>
                   <div><dt>Backend</dt><dd>{officialRemotePublication.backendStatus}</dd></div>
                   <div><dt>Firebase Admin</dt><dd>{officialRemotePublication.firebaseAdminStatus?.configured ? 'Configurado' : 'Não configurado'}</dd></div>
@@ -2030,7 +2042,7 @@ export default function App() {
                 checked={socCompact}
                 onChange={(e) => { setSocCompact(e.target.checked); localStorage.setItem('escala-dashboard:soc-compact', String(e.target.checked)); }}
               />
-              Modo compacto do Planejador SOC/NOC
+              Modo compacto do Planejador de escalas 6x1
             </label>
             <p className="muted">
               Backend Express configurado em <code>{(import.meta.env.VITE_DASHBOARD_API_BASE_URL as string | undefined) || 'http://127.0.0.1:3001'}</code>.
@@ -2153,7 +2165,7 @@ export default function App() {
       )}
       {showTeamDialog && firebaseDashboard.user?.isSystemAdmin && <TeamDialog onCancel={() => setShowTeamDialog(false)} onSave={(team: Team) => {
         setFirebaseBusy(true);
-        void saveTeam(firebaseDashboard.user!, team).then(() => firebaseDashboard.reloadTeams(firebaseDashboard.user!)).then(() => reloadOnCallGroups()).then(() => { setShowTeamDialog(false); notify('Time salvo.'); }).catch((error) => firebaseDashboard.setError((error as Error).message)).finally(() => setFirebaseBusy(false));
+        void saveTeam(firebaseDashboard.user!, team).then(() => firebaseDashboard.reloadTeams(firebaseDashboard.user!)).then(() => reloadOnCallGroups()).then(() => { setShowTeamDialog(false); notify('Equipe salva.'); }).catch((error) => firebaseDashboard.setError((error as Error).message)).finally(() => setFirebaseBusy(false));
       }} />}
 
       {toast && (

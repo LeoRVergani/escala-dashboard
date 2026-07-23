@@ -83,7 +83,7 @@ export function OfficialPublicationPanel({
           <span>Próxima revisão: {validation.nextPublicationRevision}</span>
           <span>Checksum: {validation.checksumStatus}</span>
           <span>
-            Times: {validation.counts.teams ?? 0}
+            Equipes: {validation.counts.teams ?? 0}
             {' · '}
             Membros: {validation.counts.members ?? 0}
             {' · '}

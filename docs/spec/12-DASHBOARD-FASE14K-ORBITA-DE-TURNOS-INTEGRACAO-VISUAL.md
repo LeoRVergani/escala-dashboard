@@ -13,7 +13,9 @@ no commit `e67f9e0`, `npx tsc --noEmit` limpo, `npx vitest run` verde (460 teste
 identificados como falha por contenção de CPU sob suíte completa, confirmados não-determinísticos
 ao rodar isoladamente — não são regressão desta fase), `npm run build` verde. Versão em
 `package.json`/`package-lock.json`: `1.15.4` (o `package-lock.json` já estava desatualizado em
-`1.12.0` antes desta sessão; a correção para `1.15.4` é legítima e foi preservada).
+`1.12.0` antes desta sessão; a correção para `1.15.4` foi legítima e preservada no primeiro
+checkpoint). A entrega 14K consolida a versão `1.16.0` via
+`npm version 1.16.0 --no-git-tag-version`, sem tag Git.
 
 ## Fontes visuais e resolução de divergência
 
@@ -152,8 +154,21 @@ então não há rollback de dado a considerar, só de código.
 - Versão exibida na interface deriva de `package.json` (nunca mais um literal
   `vX.Y.Z` hardcoded) — com teste que falha se isso regredir.
 - Ícone/marca reais versionados em `public/brand/`, sem referência a `/manus-storage/...`.
+- `index.html` referencia `favicon.ico`, `apple-touch-icon.png`, ícone PNG 192 e
+  `manifest.webmanifest`; o manifesto referencia ícones 192/512 e maskable 192/512.
 - Zero escrita real no Firestore; `ALLOW_OFFICIAL_FIRESTORE_WRITE` ausente/`false`.
 - Validação manual real no Chromium (fora de sandbox) do fluxo Gestor → COSI → SOC →
   Importar → Revisar → Validar → Publicar (com escrita desligada), Histórico, Trocas,
   Administração, Diagnóstico técnico, 1920×1080, 1366×768, tablet, navegação por teclado,
   console sem erros.
+
+## Continuação registrada em 23/07/2026
+
+Após interrupção do trabalho inicial, o checkpoint pendente foi revisado e fechado com:
+
+- versão visual derivada de `package.json` (`APP_VERSION = packageJson.version`) no
+  cabeçalho principal;
+- teste `tests/version.test.ts`, que falha se a versão voltar a ser literal no `App.tsx`;
+- manifesto Web/PWA local e teste `tests/pwaManifest.test.ts`;
+- atualização do `CHANGELOG.md` para `1.16.0`;
+- correção do teste de diagnóstico para a nomenclatura final "Ambiente de Demonstração".

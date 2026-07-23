@@ -130,7 +130,7 @@ function createSocDemo(referenceIso: string): ScheduleState {
   ];
   const technicians = shifts.map((_shift, index): Technician => ({
     id: `demo-soc-${index + 1}`,
-    name: `Analista SOC/NOC Fictício ${String(index + 1).padStart(2, '0')}`,
+    name: `Analista SOC Fictício ${String(index + 1).padStart(2, '0')}`,
     color: undefined,
   }));
   const cells: ScheduleState['cells'] = {};

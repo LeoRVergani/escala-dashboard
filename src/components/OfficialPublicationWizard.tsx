@@ -72,13 +72,13 @@ function officialScheduleLoadMessage(result: OfficialScheduleLoadResult | null):
   if (!result) return null;
   if (result.status === 'OK') return `Escala oficial carregada da revisão ${result.revision}.`;
   if (result.status === 'EMPTY') return 'Nenhuma revisão oficial foi publicada ainda.';
-  if (result.status === 'TEAM_NOT_FOUND') return `O time ${result.teamId} não existe na revisão ${result.revision}.`;
+  if (result.status === 'TEAM_NOT_FOUND') return `A equipe ${result.teamId} não existe na revisão ${result.revision}.`;
   if (result.status === 'OFFLINE') return 'Backend indisponível. A escala local aberta foi preservada.';
   return result.error.message;
 }
 
 /**
- * Wizard/stepper da Publicação Oficial (FASE 14E, seção "Publicação Oficial" +
+ * Wizard/stepper da Publicação Oficial (FASE 14E, seção "Publicar escala" +
  * "Vínculo corporativo oficial"). Substitui o antigo painel único, que ficava dentro do
  * bloco condicional do Ambiente Demo e nunca filtrava membros/equipes contaminados pelo
  * Ambiente Demo (causa raiz do erro "identificador incompatível com o workspace ici-dev"
@@ -148,12 +148,12 @@ export function OfficialPublicationWizard({
     { step: 2, label: 'Revisão dos dados', valid: Boolean(officialPackage && hasEligibleTeam) },
     { step: 3, label: 'Diagnósticos', valid: true },
     { step: 4, label: 'Vínculo corporativo', valid: hasEligibleData && backendOnline },
-    { step: 5, label: 'Dry-run', valid: hasEligibleData && backendOnline && linkOk },
-    { step: 6, label: 'Revisão do plano', valid: hasEligibleData && backendOnline && linkOk && dryRunOk },
+    { step: 5, label: 'Validar escala', valid: hasEligibleData && backendOnline && linkOk },
+    { step: 6, label: 'Conferir alterações', valid: hasEligibleData && backendOnline && linkOk && dryRunOk },
     { step: 7, label: 'Confirmação', valid: hasEligibleData && backendOnline && linkOk && dryRunOk },
-    { step: 8, label: 'Resultado', valid: true },
+    { step: 8, label: 'Publicação concluída', valid: true },
   ];
-  // "Diagnósticos" (3) e "Resultado" (8) ficam sempre alcançáveis - são exatamente onde o
+  // "Diagnósticos" (3) e "Publicação concluída" (8) ficam sempre alcançáveis - são exatamente onde o
   // usuário vai para entender POR QUE uma etapa anterior está bloqueada, ou para conferir o
   // resultado de uma tentativa passada. As demais seguem a cadeia estrita: só alcançável se
   // toda etapa anterior (exceto 3) já for válida.
@@ -171,7 +171,7 @@ export function OfficialPublicationWizard({
     diagnostics.push({
       id: 'demo-contamination',
       severity: 'error',
-      message: 'Os dados carregados pertencem ao Ambiente Demo (workspace demo-v1) e nunca são aceitos na publicação oficial.',
+      message: 'Os dados carregados pertencem ao Ambiente de Demonstração e nunca são aceitos na publicação oficial.',
       detail: 'IDs contendo "demo" são rejeitados no cliente (eligibleOfficialMembers/Teams) e no servidor (assertOfficialOnlyWritePlan.mjs).',
     });
   } else if (!hasEligibleData) {
@@ -182,18 +182,18 @@ export function OfficialPublicationWizard({
     });
   }
   if (backendStatus === 'OFFLINE') {
-    diagnostics.push({ id: 'backend-offline', severity: 'error', message: 'Backend indisponível — inicie o servidor Express (npm run server:dev) e confirme VITE_DASHBOARD_API_BASE_URL.' });
+    diagnostics.push({ id: 'backend-offline', severity: 'error', message: 'Serviço de publicação indisponível no momento. Tente novamente em instantes ou contate o suporte técnico.' });
   } else if (backendStatus === 'UNKNOWN') {
     diagnostics.push({ id: 'backend-unknown', severity: 'info', message: 'Verificando status do backend…' });
   }
   if (backendOnline && firebaseAdminStatus && !firebaseAdminStatus.configured) {
-    diagnostics.push({ id: 'admin-missing', severity: 'warning', message: 'Firebase Admin não configurado no servidor — dry-run funciona, a publicação real não.' });
+    diagnostics.push({ id: 'admin-missing', severity: 'warning', message: 'A conexão de publicação oficial não está configurada neste ambiente — a validação funciona normalmente, mas a publicação real ainda não.' });
   }
   if (firebaseAdminStatus && !writeEnabled) {
-    diagnostics.push({ id: 'flag-disabled', severity: 'info', message: 'ALLOW_OFFICIAL_FIRESTORE_WRITE está desligada — publicação oficial desabilitada neste ambiente. O dry-run continua disponível.' });
+    diagnostics.push({ id: 'flag-disabled', severity: 'info', message: 'A publicação oficial está temporariamente desligada neste ambiente. A validação continua disponível.' });
   }
   if (officialPackage && corporateLink.memberId && corporateLink.teamId && !linkOk) {
-    diagnostics.push({ id: 'link-invalid', severity: 'error', message: referentialLinkError ?? 'O vínculo selecionado usa dados do Ambiente Demo, incompatíveis com o workspace ici-dev.' });
+    diagnostics.push({ id: 'link-invalid', severity: 'error', message: referentialLinkError ?? 'O vínculo selecionado usa dados do Ambiente de Demonstração, que não podem ser usados na publicação oficial.' });
   }
   if (lastError) {
     diagnostics.push({ id: 'last-error', severity: 'error', message: lastError.message, detail: lastError.code });
@@ -206,9 +206,9 @@ export function OfficialPublicationWizard({
   };
 
   return (
-    <section className="official-wizard" aria-label="Publicação Oficial — workspace ici-dev">
+    <section className="official-wizard" aria-label="Publicar escala">
       <div className="official-wizard-head">
-        <h2>Publicação Oficial — workspace ici-dev</h2>
+        <h2>Publicar escala</h2>
         <p className="official-wizard-warning" role="alert">
           Esta área grava dados reais consumidos pelo Escala ICI (KMP). Confira cada etapa
           com atenção antes de confirmar.
@@ -247,7 +247,7 @@ export function OfficialPublicationWizard({
                 disabled={officialScheduleLoading || !officialScheduleTeamId.trim()}
               >
                 <b>Publicação oficial ativa</b>
-                <span>Carrega a revisão ativa do Firebase para o time informado.</span>
+                <span>Carrega a revisão ativa do Firebase para a equipe informada.</span>
               </button>
               <button
                 type="button"
@@ -313,7 +313,7 @@ export function OfficialPublicationWizard({
             </div>
             <div className="official-publication-validation" role="group" aria-label="Carregar escala oficial publicada">
               <label>
-                Time oficial
+                Equipe oficial
                 <input
                   value={officialScheduleTeamId}
                   placeholder="teamId"
@@ -335,7 +335,7 @@ export function OfficialPublicationWizard({
                 disabled={officialScheduleLoading || !officialScheduleTeamId.trim()}
                 onClick={onLoadOfficialActiveSchedule}
               >
-                {officialScheduleLoading ? 'Carregando…' : `Carregar escala oficial ativa para o time ${officialScheduleTeamId || 'X'}`}
+                {officialScheduleLoading ? 'Carregando…' : `Carregar escala oficial ativa para a equipe ${officialScheduleTeamId || 'X'}`}
               </button>
               <button
                 type="button"
@@ -421,7 +421,7 @@ export function OfficialPublicationWizard({
 
         {step === 5 && (
           <div className="official-wizard-step-content">
-            <h3>5 · Dry-run</h3>
+            <h3>5 · Validar escala</h3>
             <p>Executa a validação completa no servidor sem gravar nada — sempre disponível, mesmo com a publicação oficial desabilitada.</p>
             <button type="button" className="btn" disabled={!linkOk || busy !== 'IDLE' || !backendOnline} onClick={onValidate}>
               {busy === 'VALIDATING' ? 'Validando…' : 'Executar dry-run'}
@@ -448,12 +448,12 @@ export function OfficialPublicationWizard({
 
         {step === 6 && (
           <div className="official-wizard-step-content">
-            <h3>6 · Revisão do plano</h3>
+            <h3>6 · Conferir alterações</h3>
             {validation && officialPackage ? (
               <dl className="official-wizard-summary-list">
                 <div><dt>Workspace</dt><dd>ici-dev</dd></div>
                 <div><dt>Próxima revisão</dt><dd>{validation.nextPublicationRevision}</dd></div>
-                <div><dt>Times</dt><dd>{validation.counts.teams ?? 0}</dd></div>
+                <div><dt>Equipes</dt><dd>{validation.counts.teams ?? 0}</dd></div>
                 <div><dt>Membros</dt><dd>{validation.counts.members ?? 0}</dd></div>
                 <div><dt>Períodos</dt><dd>{validation.counts.schedulePeriods ?? 0}</dd></div>
                 <div><dt>Atribuições</dt><dd>{validation.counts.scheduleAssignments ?? 0}</dd></div>
@@ -467,7 +467,7 @@ export function OfficialPublicationWizard({
                 </div>
               </dl>
             ) : (
-              <p>Execute o dry-run na etapa anterior para revisar o plano.</p>
+              <p>Execute a validação na etapa anterior para conferir as alterações.</p>
             )}
           </div>
         )}
@@ -488,7 +488,7 @@ export function OfficialPublicationWizard({
 
         {step === 8 && (
           <div className="official-wizard-step-content">
-            <h3>8 · Resultado</h3>
+            <h3>8 · Publicação concluída</h3>
             {publishResult && (
               <p className="official-wizard-ok" role="status">
                 Workspace oficial ici-dev publicado na revisão {publishResult.revision}.

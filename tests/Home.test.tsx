@@ -87,7 +87,7 @@ describe('Home — tela inicial (FASE 14E)', () => {
   it('mostra no resumo o status Demo/Oficial/backend/Firebase Admin', () => {
     renderHome({
       hasSchedule: true,
-      scheduleTypeLabel: 'SOC/NOC — Escala 6x1',
+      scheduleTypeLabel: 'SOC — Escala 6x1',
       periodLabel: '26/07 a 25/08/2026',
       peopleCount: 6,
       assignmentsCount: 120,
@@ -99,7 +99,7 @@ describe('Home — tela inicial (FASE 14E)', () => {
       firebaseAdminConfigured: false,
     });
 
-    expect(screen.getByText('SOC/NOC — Escala 6x1')).toBeInTheDocument();
+    expect(screen.getByText('SOC — Escala 6x1')).toBeInTheDocument();
     expect(screen.getByText('26/07 a 25/08/2026')).toBeInTheDocument();
     expect(screen.getByText('Carregado · alterações locais')).toBeInTheDocument();
     expect(screen.getByText(/sem membros elegíveis/i)).toBeInTheDocument();

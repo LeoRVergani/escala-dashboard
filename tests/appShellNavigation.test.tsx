@@ -8,7 +8,7 @@ async function renderWithTestDrive() {
   const user = userEvent.setup();
   render(<App />);
   await user.click(screen.getByRole('button', { name: /test drive/i }));
-  await user.click(screen.getByRole('button', { name: /SOC\/NOC/i }));
+  await user.click(screen.getByRole('button', { name: /SOC ou NOC/i }));
   await user.click(screen.getByRole('button', { name: /avançar/i }));
   await user.click(screen.getByRole('button', { name: /avançar/i }));
   await user.click(screen.getByRole('button', { name: /confirmar/i }));
@@ -25,10 +25,10 @@ describe('AppShell — navegação principal integrada ao App (FASE 14E)', () =>
   it('volta à Início e retornar à Grade preserva a edição feita antes de navegar', async () => {
     const { user, grid } = await renderWithTestDrive();
 
-    await user.click(cell(grid, /Analista SOC\/NOC Fictício 06/, 3));
+    await user.click(cell(grid, /Analista SOC Fictício 06/, 3));
     const menu = await screen.findByRole('menu', { name: /turno da célula/i });
     await user.click(within(menu).getByRole('menuitem', { name: /Noite/ }));
-    expect(cell(grid, /Analista SOC\/NOC Fictício 06/, 3)).toHaveAccessibleName(/Noite/);
+    expect(cell(grid, /Analista SOC Fictício 06/, 3)).toHaveAccessibleName(/Noite/);
 
     // Navega para a Home e depois de volta para a Grade - nenhum recarregamento do App
     // acontece (é troca de seção, não de rota), então o rascunho em memória não é tocado.
@@ -38,11 +38,11 @@ describe('AppShell — navegação principal integrada ao App (FASE 14E)', () =>
 
     await user.click(screen.getByRole('tab', { name: 'Grade' }));
     const gridAfterReturn = await screen.findByRole('grid', { name: /grade mensal/i });
-    expect(cell(gridAfterReturn, /Analista SOC\/NOC Fictício 06/, 3)).toHaveAccessibleName(/Noite/);
+    expect(cell(gridAfterReturn, /Analista SOC Fictício 06/, 3)).toHaveAccessibleName(/Noite/);
 
     // Desfazer/refazer também continuam funcionando normalmente após a viagem de ida e volta.
     await user.click(screen.getByRole('button', { name: /^desfazer$/i }));
-    expect(cell(gridAfterReturn, /Analista SOC\/NOC Fictício 06/, 3)).not.toHaveAccessibleName(/Noite/);
+    expect(cell(gridAfterReturn, /Analista SOC Fictício 06/, 3)).not.toHaveAccessibleName(/Noite/);
   }, 10_000);
 
   it('Ambiente Demo e Publicação Oficial nunca aparecem empilhados na mesma tela', async () => {
@@ -52,10 +52,10 @@ describe('AppShell — navegação principal integrada ao App (FASE 14E)', () =>
     await user.click(screen.getByRole('button', { name: /^ambiente de demonstração$/i }));
     await screen.findByText('AMBIENTE DE DEMONSTRAÇÃO');
     expect(screen.getByText('Publicação do Ambiente de Demonstração')).toBeInTheDocument();
-    expect(screen.queryByText('Publicação Oficial — workspace ici-dev')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Publicar escala' })).not.toBeInTheDocument();
 
-    await user.click(screen.getByRole('tab', { name: 'Publicação Oficial' }));
-    expect(screen.getByText('Publicação Oficial — workspace ici-dev')).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: 'Publicar escala' }));
+    expect(screen.getByRole('heading', { name: 'Publicar escala' })).toBeInTheDocument();
     expect(screen.queryByText('Publicação do Ambiente de Demonstração')).not.toBeInTheDocument();
     // O banner de ambiente é a única referência ao Demo que continua visível em qualquer
     // seção (indicador global de "em qual ambiente você está"), não o painel de gestão.

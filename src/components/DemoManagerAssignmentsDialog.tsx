@@ -107,7 +107,7 @@ export function DemoManagerAssignmentsDialog({ pkg, onSave, onCancel }: DemoMana
     const workspaceId = pkg.workspace.workspaceId;
 
     if (!team) {
-      setError('Selecione um time cadastrado no pacote Demo.');
+      setError('Selecione uma equipe cadastrada no pacote Demo.');
       return;
     }
     if (!member) {
@@ -115,7 +115,7 @@ export function DemoManagerAssignmentsDialog({ pkg, onSave, onCancel }: DemoMana
       return;
     }
     if (team.workspaceId !== workspaceId || member.workspaceId !== workspaceId) {
-      setError('Time e responsável precisam pertencer ao mesmo workspace Demo.');
+      setError('Equipe e responsável precisam pertencer ao mesmo workspace Demo.');
       return;
     }
     if (!newAssignment.validFrom) {
@@ -129,7 +129,7 @@ export function DemoManagerAssignmentsDialog({ pkg, onSave, onCancel }: DemoMana
       && assignment.role === newAssignment.role
     ));
     if (duplicated) {
-      setError('Já existe um vínculo ativo com o mesmo time, responsável e papel.');
+      setError('Já existe um vínculo ativo com a mesma equipe, responsável e papel.');
       return;
     }
 
@@ -178,7 +178,7 @@ export function DemoManagerAssignmentsDialog({ pkg, onSave, onCancel }: DemoMana
             <table className="demo-manager-table">
               <thead>
                 <tr>
-                  <th>Time</th>
+                  <th>Equipe</th>
                   <th>Responsável</th>
                   <th>Login fictício</th>
                   <th>Papel</th>
@@ -261,9 +261,9 @@ export function DemoManagerAssignmentsDialog({ pkg, onSave, onCancel }: DemoMana
           <h3>Adicionar responsável</h3>
           <div className="demo-manager-add-grid">
             <label>
-              Time
+              Equipe
               <select
-                aria-label="Time do novo responsável"
+                aria-label="Equipe do novo responsável"
                 value={newAssignment.teamId}
                 onChange={(event) => setNewAssignment((current) => ({ ...current, teamId: event.target.value }))}
               >
