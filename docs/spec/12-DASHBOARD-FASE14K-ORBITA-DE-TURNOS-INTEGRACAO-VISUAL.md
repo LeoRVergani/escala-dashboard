@@ -315,3 +315,39 @@ Validação do checkpoint:
   `chromium`, `chromium-browser`, `google-chrome`, Playwright ou Puppeteer no
   projeto/PATH. A conclusão visual definitiva continua condicionada a essa
   validação em navegador real.
+
+## Checkpoint 2 — entrada única, catálogo de equipes e página da equipe
+
+Executado por Codex sem supervisão em tempo real (sessão de orquestração do
+Claude temporariamente indisponível); revisado, testado e commitado por mim
+(Claude) posteriormente — diff lido por completo, suíte reexecutada de forma
+independente, sem confiar no relato do executor.
+
+Continuação do mapeamento da spec original (`Teams`→catálogo de equipes
+autorizadas, `TeamPage`→resumo real da equipe): tela desautenticada única
+(`EntryScreen`, acesso de teste local recolhido, nunca em primeiro plano),
+catálogo pesquisável de equipes vindo só do estado real
+(`SchedulesOverview`, sem período/contagem fixos), página de resumo por
+equipe (`TeamHomePage`: período atual, colaboradores, rascunho local —
+"Publicação" mostra honestamente "Não carregada" em vez de forjar um
+estado de sucesso que não existe) e um diálogo de início de escala que só
+encaminha para importar ou criar, sem simular resultado
+(`StartScheduleDialog`). `Home.tsx`/`App.tsx` simplificados para delegar ao
+catálogo de equipes; ações de teste (`legacyTestActions`) só existem sob
+`import.meta.env.MODE === 'test'`, nunca em build normal.
+
+Verificado por mim antes de commitar:
+- nenhuma referência a `manus`/`Manus`/`prototype-data` em nenhum arquivo
+  tocado (tracked ou novo);
+- nenhuma dependência nova em `package.json` (sem Radix, shadcn, wouter,
+  Tailwind);
+- nenhum `.env`/credencial/token em `git status`;
+- `git diff --check`: limpo (sem problemas de whitespace).
+
+Validação do checkpoint:
+- `npm run typecheck`: aprovado;
+- `npm run test`: 68 arquivos, 475 testes aprovados (inclui os 3 arquivos de
+  teste novos: `EntryScreen.test.tsx`, `SchedulesOverview.test.tsx`,
+  `StartScheduleDialog.test.tsx`);
+- Chromium real: ainda pendente para este checkpoint especificamente (ver
+  validação consolidada de todo o FASE 14K antes do relatório final).

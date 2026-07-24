@@ -27,6 +27,16 @@
     `src/styles.css`, escurece superfícies estruturais compartilhadas (shell,
     modais, popovers, campos, barras, tabelas e overlays) e adiciona testes de
     regressão para impedir retorno do tema claro.
+  - **Checkpoint 2 — entrada única, catálogo de equipes e página da equipe**:
+    `EntryScreen` substitui a tela desautenticada anterior por um único ponto
+    de entrada (acesso de teste local recolhido, nunca em primeiro plano);
+    `SchedulesOverview` lista só as equipes autorizadas recebidas do catálogo
+    real (sem período/contagem fixos); `TeamHomePage` mostra o resumo real de
+    uma equipe (período atual, colaboradores, rascunho local) e informa
+    honestamente "Publicação: Não carregada" em vez de simular sucesso;
+    `StartScheduleDialog` só encaminha para importar ou criar, sem forjar
+    resultado. `Home.tsx`/`App.tsx` simplificados para delegar ao catálogo de
+    equipes. Nenhuma dependência nova, nenhuma referência a Manus/protótipo.
 
 ## 1.15.3 — 22/07/2026
 
