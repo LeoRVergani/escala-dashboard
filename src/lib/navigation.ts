@@ -4,6 +4,7 @@
 // persistia antes.
 export type AppSection =
   | 'home'
+  | 'schedules'
   | 'import'
   | 'planner'
   | 'grid'
@@ -20,7 +21,8 @@ export interface AppSectionMeta {
 }
 
 export const APP_SECTIONS: AppSectionMeta[] = [
-  { key: 'home', label: 'Início', description: 'Visão geral e atalhos' },
+  { key: 'home', label: 'Minhas equipes', description: 'Equipes autorizadas' },
+  { key: 'schedules', label: 'Escalas', description: 'Visão geral dos períodos' },
   { key: 'import', label: 'Importar escala', description: 'Planilha XLS/XLSX' },
   { key: 'planner', label: 'Planejador', description: 'Arrastar e soltar (escalas 6x1 rotativas)' },
   { key: 'grid', label: 'Grade', description: 'Grade mensal editável' },

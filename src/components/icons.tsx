@@ -155,6 +155,7 @@ export const CollapseRightIcon = (props: IconProps) => base(
 
 export const SECTION_ICONS = {
   home: HomeIcon,
+  schedules: GridIcon,
   import: ImportIcon,
   planner: PlannerIcon,
   grid: GridIcon,

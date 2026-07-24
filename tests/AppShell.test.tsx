@@ -31,9 +31,9 @@ describe('AppShell — navegação principal (FASE 14E)', () => {
     const { onNavigate } = renderShell({ activeSection: 'grid' as AppSection });
 
     expect(screen.getByRole('tab', { name: 'Grade' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tab', { name: 'Início' })).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByRole('tab', { name: 'Minhas equipes' })).toHaveAttribute('aria-selected', 'false');
 
-    await user.click(screen.getByRole('tab', { name: 'Início' }));
+    await user.click(screen.getByRole('tab', { name: 'Minhas equipes' }));
     expect(onNavigate).toHaveBeenCalledWith('home');
   });
 

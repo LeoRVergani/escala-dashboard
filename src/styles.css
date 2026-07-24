@@ -1723,6 +1723,70 @@ details.block li { margin: 2px 0; }
 .home-card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .home-card-official { border-color: var(--action); }
 
+/* ---------- Órbita de Turnos: entrada e equipes ---------- */
+.entry-screen { min-height: 100vh; display: flex; flex-direction: column; padding: 28px clamp(20px, 5vw, 72px); background: var(--orbit-background); color: var(--orbit-text-primary); overflow: hidden; }
+.entry-screen__top { max-width: 1240px; width: 100%; margin: 0 auto; }
+.entry-screen__content { width: 100%; max-width: 1240px; margin: auto; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(280px, .95fr); gap: clamp(32px, 8vw, 120px); align-items: center; }
+.entry-screen__copy { display: grid; gap: 18px; max-width: 650px; }
+.entry-screen__eyebrow,.page-eyebrow { color: var(--orbit-primary); font: 700 11px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; text-transform: uppercase; }
+.entry-screen h1,.orbit-page h1 { margin: 0; font: 700 clamp(34px, 5vw, 64px)/1.02 var(--font-display); letter-spacing: 0; }
+.entry-screen__copy > p,.orbit-page__header p { max-width: 560px; margin: 0; color: var(--orbit-text-secondary); font-size: 18px; line-height: 1.55; }
+.entry-screen__actions { display: grid; gap: 9px; max-width: 360px; }
+.entry-screen__login { min-height: 48px; font-family: var(--font-display); }
+.entry-screen__hint,.entry-screen__error { margin: 0; color: var(--orbit-text-secondary); font-size: 12px; }
+.entry-screen__error { color: var(--orbit-danger); font-weight: 700; }
+.entry-screen__test { display: grid; gap: 10px; max-width: 360px; }
+.entry-screen__test form { display: grid; gap: 7px; padding: 12px; border: 1px solid var(--orbit-border); border-radius: 8px; background: var(--orbit-surface); }
+.entry-screen__test-row { display: flex; gap: 7px; flex-wrap: wrap; }
+.entry-screen__test-row input { flex: 1 1 160px; }
+.entry-screen__test small { color: var(--orbit-text-secondary); }
+.entry-screen__visual { min-height: 320px; display: grid; place-content: center; gap: 28px; padding: 30px; border: 1px solid var(--orbit-border); border-radius: 8px; background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--orbit-violet) 20%, transparent), transparent 55%), var(--orbit-surface); box-shadow: var(--shadow-lg); }
+.entry-screen__note { display: grid; gap: 5px; max-width: 330px; padding: 16px; border-left: 3px solid var(--orbit-success); background: color-mix(in srgb, var(--orbit-card) 88%, transparent); }
+.entry-screen__note span { color: var(--orbit-text-secondary); font-size: 13px; }
+.orbit-page { display: grid; gap: 22px; min-width: 0; }
+.orbit-page__header { display: flex; align-items: end; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
+.orbit-page__header > div { display: grid; gap: 9px; }
+.orbit-page__header p { font-size: 14px; }
+.teams-page__metric { display: grid; gap: 2px; padding: 14px 18px; border-left: 3px solid var(--orbit-primary); background: var(--orbit-card); }
+.teams-page__metric strong { font: 700 30px/1 var(--font-display); }
+.teams-page__metric span { color: var(--orbit-text-secondary); font-size: 12px; }
+.area-card,.team-home-summary,.draft-banner { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 20px; border: 1px solid var(--orbit-border); border-radius: 8px; background: var(--orbit-surface); }
+.area-card > div,.team-home-summary > div,.draft-banner > div { display: grid; gap: 7px; }
+.area-card h2,.section-heading h2,.orbit-team-card h3,.team-home-summary strong { margin: 0; font-family: var(--font-display); }
+.area-card p,.orbit-team-card p,.team-home-summary span,.draft-banner span { margin: 0; color: var(--orbit-text-secondary); font-size: 13px; }
+.area-card dl { display: flex; gap: 22px; flex-wrap: wrap; margin: 0; }
+.area-card dt,.orbit-team-card dt { color: var(--orbit-text-secondary); font-size: 10px; text-transform: uppercase; }
+.area-card dd,.orbit-team-card dd { margin: 4px 0 0; font-weight: 700; }
+.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.section-heading > div { display: grid; gap: 5px; }
+.section-heading h2 { font-size: 23px; }
+.team-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.orbit-team-card,.schedule-list__item { display: grid; gap: 14px; padding: 18px; border: 1px solid var(--orbit-border); border-radius: 8px; background: var(--orbit-card); }
+.orbit-team-card.is-selected,.schedule-list__item.is-selected { border-color: var(--orbit-primary); box-shadow: 0 0 0 1px color-mix(in srgb, var(--orbit-primary) 35%, transparent); }
+.orbit-team-card__head,.orbit-team-card__actions,.schedule-list__actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.orbit-team-card__meta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0; }
+.orbit-team-card__actions { justify-content: flex-start; }
+.status-badge { display: inline-flex; width: fit-content; padding: 4px 8px; border-radius: 999px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.status-badge--active { color: var(--orbit-success); border: 1px solid color-mix(in srgb, var(--orbit-success) 55%, transparent); background: color-mix(in srgb, var(--orbit-success) 12%, transparent); }
+.status-badge--inactive { color: var(--orbit-text-secondary); border: 1px solid var(--orbit-border); }
+.schedule-filters { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; padding: 16px; border: 1px solid var(--orbit-border); background: var(--orbit-surface); }
+.schedule-filters label { display: grid; gap: 5px; min-width: 190px; color: var(--orbit-text-secondary); font-size: 11px; font-weight: 700; }
+.schedule-list { display: grid; gap: 10px; }
+.schedule-list__item { grid-template-columns: minmax(0,1fr) auto; align-items: center; }
+.schedule-list__item h2 { margin: 12px 0 4px; font: 700 18px var(--font-display); }
+.schedule-list__item p { margin: 0; color: var(--orbit-text-secondary); font-size: 12px; }
+.orbit-state { display: grid; place-items: center; gap: 8px; min-height: 180px; padding: 24px; border: 1px dashed var(--orbit-border); border-radius: 8px; text-align: center; color: var(--orbit-text-secondary); }
+.orbit-state h1,.orbit-state h2,.orbit-state p { margin: 0; }.orbit-state h1,.orbit-state h2 { color: var(--orbit-text-primary); font: 700 20px var(--font-display); }.orbit-state--error { border-color: var(--orbit-danger); }.orbit-state--error h1 { color: var(--orbit-danger); }
+.loading-indicator { width: 22px; height: 22px; border: 2px solid var(--orbit-border); border-top-color: var(--orbit-primary); border-radius: 50%; animation: orbit-spin .8s linear infinite; }
+@keyframes orbit-spin { to { transform: rotate(360deg); } }
+.start-schedule-dialog { position: relative; width: min(620px, calc(100vw - 32px)); display: grid; gap: 12px; padding: 26px; border: 1px solid var(--orbit-border); border-radius: 8px; background: var(--orbit-card-elevated); box-shadow: var(--shadow-lg); }
+.start-schedule-dialog h2 { margin: 0; font: 700 28px var(--font-display); }.start-schedule-dialog p { margin: 0; color: var(--orbit-text-secondary); }.start-schedule-dialog__close { position: absolute; top: 12px; right: 12px; }
+.start-schedule-dialog__options { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin-top: 10px; }
+.start-option { display: grid; gap: 7px; min-height: 120px; padding: 16px; border: 1px solid var(--orbit-border); border-radius: 8px; background: var(--orbit-surface); color: var(--orbit-text-primary); text-align: left; cursor: pointer; }.start-option:hover,.start-option:focus-visible { border-color: var(--orbit-primary); background: var(--orbit-card); }.start-option span { color: var(--orbit-text-secondary); font-size: 12px; }
+.team-home-page { max-width: 1100px; }.team-home-summary strong { font-size: 22px; }.draft-banner { border-color: var(--orbit-warning); background: color-mix(in srgb, var(--orbit-warning) 7%, var(--orbit-surface)); }.draft-banner > div:last-child { display: flex; flex-wrap: wrap; }.metric-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; }.metric-card { display: grid; gap: 8px; padding: 16px; border: 1px solid var(--orbit-border); background: var(--orbit-card); }.metric-card span { color: var(--orbit-text-secondary); font-size: 12px; }.metric-card strong { font: 700 20px var(--font-display); }
+@media (max-width: 760px) { .entry-screen__content { grid-template-columns: 1fr; }.entry-screen__visual { min-height: 230px; }.area-card,.team-home-summary,.draft-banner { align-items: stretch; flex-direction: column; }.schedule-list__item { grid-template-columns: 1fr; }.start-schedule-dialog__options,.metric-grid { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .loading-indicator { animation: none; } }
+
 /* ---------- Seção Ambiente Demo ---------- */
 
 .demo-section { display: flex; flex-direction: column; gap: 16px; }

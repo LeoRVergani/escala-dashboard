@@ -1,184 +1,60 @@
+import type { Team } from '../types';
+
 export interface HomeSummary {
-  hasSchedule: boolean;
-  scheduleTypeLabel: string | null;
-  periodLabel: string | null;
-  peopleCount: number;
-  assignmentsCount: number;
-  localDraftAvailable: boolean;
-  testDriveAvailable: boolean;
-  demoWorkspaceLoaded: boolean;
-  demoWorkspaceDirty: boolean;
-  demoContinueAvailable: boolean;
-  officialPackageLoaded: boolean;
-  officialEligibleMemberCount: number;
+  greeting: string;
+  areaLabel: string;
+  peopleCount: number | null;
+  draftCount: number;
   backendStatus: 'UNKNOWN' | 'ONLINE' | 'OFFLINE';
-  firebaseAdminConfigured: boolean | null;
 }
 
 interface HomeProps {
   summary: HomeSummary;
-  onCreateEmpty: () => void;
-  onStartImport: () => void;
-  onOpenDraft: () => void;
-  onStartTestDrive: () => void;
-  onContinueTestDrive: () => void;
-  onOpenDemoWorkspace: () => void;
-  onContinueDemoWorkspace: () => void;
-  onPrepareOfficial: () => void;
-  onViewStatus: () => void;
+  teams: Team[];
+  selectedTeamId: string;
+  onSelectTeam: (teamId: string) => void;
+  onOpenTeam: (teamId: string) => void;
+  onCreate: (teamId?: string) => void;
+  onLogin: () => void;
+  userName?: string;
+  loading?: boolean;
+  error?: string | null;
+  legacyTestActions?: { onStartTestDrive: () => void; onOpenDemo: () => void; onPrepareOfficial: () => void };
 }
 
-function backendStatusLabel(status: HomeSummary['backendStatus']): string {
-  if (status === 'ONLINE') return 'Backend online';
-  if (status === 'OFFLINE') return 'Backend offline';
-  return 'Backend: verificando…';
+function teamKind(team: Team): string {
+  return team.scheduleKind === 'ON_CALL' ? 'Plantão COSI' : 'Escala 6x1';
 }
 
-/**
- * Tela inicial (FASE 14E): cartões de entrada + resumo compacto do estado atual. Não
- * mostra a grade nem formulários — cada cartão apenas navega para a seção certa ou
- * dispara a mesma ação que já existia na barra/empty-state anteriores.
- */
-export function Home({
-  summary,
-  onCreateEmpty,
-  onStartImport,
-  onOpenDraft,
-  onStartTestDrive,
-  onContinueTestDrive,
-  onOpenDemoWorkspace,
-  onContinueDemoWorkspace,
-  onPrepareOfficial,
-  onViewStatus,
-}: HomeProps) {
+export function Home({ summary, teams, selectedTeamId, onSelectTeam, onOpenTeam, onCreate, onLogin, userName, loading = false, error = null, legacyTestActions }: HomeProps) {
+  if (loading) return <main className="orbit-page"><div className="orbit-state orbit-state--loading" aria-live="polite"><span className="loading-indicator" />Carregando equipes autorizadas…</div></main>;
+  if (error) return <main className="orbit-page"><div className="orbit-state orbit-state--error" role="alert"><h1>Não foi possível carregar suas equipes</h1><p>{error}</p><button type="button" className="btn" onClick={onLogin}>Tentar autenticar novamente</button></div></main>;
+
   return (
-    <div className="home">
-      <section className="home-summary" aria-label="Resumo do estado atual">
-        <h2>Resumo</h2>
-        <dl>
-          <div>
-            <dt>Escala carregada</dt>
-            <dd>{summary.hasSchedule ? (summary.scheduleTypeLabel ?? 'Sim') : 'Nenhuma'}</dd>
-          </div>
-          <div>
-            <dt>Período</dt>
-            <dd>{summary.periodLabel ?? '—'}</dd>
-          </div>
-          <div>
-            <dt>Pessoas</dt>
-            <dd>{summary.hasSchedule ? summary.peopleCount : '—'}</dd>
-          </div>
-          <div>
-            <dt>Atribuições</dt>
-            <dd>{summary.hasSchedule ? summary.assignmentsCount : '—'}</dd>
-          </div>
-          <div>
-            <dt>Rascunho local</dt>
-            <dd>{summary.localDraftAvailable ? 'Disponível' : 'Nenhum'}</dd>
-          </div>
-          <div>
-            <dt>Ambiente Demo</dt>
-            <dd>
-              {summary.demoWorkspaceLoaded
-                ? (summary.demoWorkspaceDirty ? 'Carregado · alterações locais' : 'Carregado · sincronizado')
-                : 'Não carregado'}
-            </dd>
-          </div>
-          <div>
-            <dt>Publicação Oficial</dt>
-            <dd>
-              {!summary.officialPackageLoaded
-                ? 'Sem pacote carregado'
-                : summary.officialEligibleMemberCount > 0
-                  ? `${summary.officialEligibleMemberCount} membro(s) elegível(is)`
-                  : 'Sem membros elegíveis (dados do Ambiente Demo)'}
-            </dd>
-          </div>
-          <div>
-            <dt>Backend</dt>
-            <dd>{backendStatusLabel(summary.backendStatus)}</dd>
-          </div>
-          <div>
-            <dt>Firebase Admin</dt>
-            <dd>
-              {summary.firebaseAdminConfigured === null
-                ? 'Indisponível'
-                : summary.firebaseAdminConfigured ? 'Configurado' : 'Não configurado'}
-            </dd>
-          </div>
-        </dl>
-        <button type="button" className="btn btn-ghost home-view-status" onClick={onViewStatus}>
-          Ver status remoto completo
-        </button>
+    <main className="orbit-page teams-page">
+      <header className="orbit-page__header teams-page__intro">
+        <div><span className="page-eyebrow">Área autorizada</span><h1>{summary.greeting}{userName ? `, ${userName}` : ''}.</h1><p>Escolha uma equipe para acompanhar o período e continuar seu trabalho.</p></div>
+        <div className="teams-page__metric"><strong>{teams.length}</strong><span>equipes autorizadas</span></div>
+      </header>
+      <section className="area-card" aria-label="Resumo da área">
+        <div><span className="page-eyebrow">Destino atual</span><h2>{summary.areaLabel}</h2><p>Equipes vinculadas ao seu acesso corporativo.</p></div>
+        <dl><div><dt>Colaboradores no contexto</dt><dd>{summary.peopleCount ?? 'Não informado'}</dd></div><div><dt>Rascunhos locais</dt><dd>{summary.draftCount}</dd></div><div><dt>Status do serviço</dt><dd>{summary.backendStatus === 'ONLINE' ? 'Online' : summary.backendStatus === 'OFFLINE' ? 'Offline' : 'Verificando'}</dd></div></dl>
       </section>
-
-      <div className="home-cards">
-        <article className="home-card">
-          <h3>Escala vazia</h3>
-          <p>Comece do zero escolhendo o tipo e o período da escala.</p>
-          <button type="button" className="btn btn-primary" onClick={onCreateEmpty}>
-            Criar escala vazia
-          </button>
-        </article>
-
-        <article className="home-card">
-          <h3>Importar planilha</h3>
-          <p>Envie um arquivo .xls/.xlsx existente para revisar e editar.</p>
-          <button type="button" className="btn btn-primary" onClick={onStartImport}>
-            Importar arquivo
-          </button>
-        </article>
-
-        <article className="home-card">
-          <h3>Rascunho local</h3>
-          <p>
-            {summary.localDraftAvailable
-              ? 'Continue de onde parou neste navegador.'
-              : 'Nenhum rascunho salvo neste navegador ainda.'}
-          </p>
-          <button type="button" className="btn" disabled={!summary.localDraftAvailable} onClick={onOpenDraft}>
-            Abrir rascunho atual
-          </button>
-        </article>
-
-        <article className="home-card">
-          <h3>Test Drive</h3>
-          <p>Dados fictícios locais, sem publicação nem impacto real.</p>
-          <div className="home-card-actions">
-            <button type="button" className="btn" onClick={onStartTestDrive}>
-              Test Drive — dados fictícios locais
-            </button>
-            {summary.testDriveAvailable && (
-              <button type="button" className="btn btn-ghost" onClick={onContinueTestDrive}>
-                Continuar Test Drive
-              </button>
-            )}
-          </div>
-        </article>
-
-        <article className="home-card">
-          <h3>Ambiente Demo</h3>
-          <p>Workspace <code>demo-v1</code>, times e responsáveis fictícios do EscalaICI-KMP-Lab.</p>
-          <div className="home-card-actions">
-            <button type="button" className="btn" onClick={onOpenDemoWorkspace}>
-              Ambiente de Demonstração
-            </button>
-            {summary.demoContinueAvailable && (
-              <button type="button" className="btn btn-ghost" onClick={onContinueDemoWorkspace}>
-                Continuar Ambiente de Demonstração
-              </button>
-            )}
-          </div>
-        </article>
-
-        <article className="home-card home-card-official">
-          <h3>Publicação Oficial</h3>
-          <p>Workspace <code>ici-dev</code> — preview, dry-run e publicação revisionada.</p>
-          <button type="button" className="btn" onClick={onPrepareOfficial}>
-            Preparar publicação oficial
-          </button>
-        </article>
-      </div>
-    </div>
+      <section className="teams-page__list" aria-labelledby="teams-title">
+        <div className="section-heading"><div><span className="page-eyebrow">Destinos</span><h2 id="teams-title">Minhas equipes</h2></div><button type="button" className="btn btn-primary" onClick={() => onCreate(selectedTeamId || teams[0]?.id)} disabled={!teams.length}>Cadastrar período</button></div>
+        {!teams.length && <div className="orbit-state orbit-state--empty"><h2>Nenhuma equipe disponível</h2><p>Seu acesso ainda não possui uma equipe ativa vinculada.</p></div>}
+        <div className="team-card-grid">
+          {teams.map((team) => (
+            <article className={`orbit-team-card${team.id === selectedTeamId ? ' is-selected' : ''}`} key={team.id}>
+              <div className="orbit-team-card__head"><span className="destination-seal"><strong>{team.scheduleKind === 'ON_CALL' ? 'Plantão' : '6x1'}</strong><span>{team.name}</span></span><span className={`status-badge status-badge--${team.active ? 'active' : 'inactive'}`}>{team.active ? 'Ativa' : 'Inativa'}</span></div>
+              <h3>{team.name}</h3><p>{teamKind(team)} · código {team.code}</p>
+              <dl className="orbit-team-card__meta"><div><dt>Período</dt><dd>Não carregado</dd></div><div><dt>Publicação</dt><dd>Sem publicação carregada</dd></div></dl>
+              <div className="orbit-team-card__actions"><button type="button" className="btn btn-primary" onClick={() => { onSelectTeam(team.id); onOpenTeam(team.id); }}>Abrir equipe</button><button type="button" className="btn btn-ghost" onClick={() => onCreate(team.id)}>Novo período</button></div>
+            </article>
+          ))}
+        </div>
+      </section>
+      {legacyTestActions && <section className="home-test-actions" aria-label="Ações de teste"><button type="button" className="btn" onClick={() => onCreate(selectedTeamId || teams[0]?.id)}>Criar escala vazia</button><button type="button" className="btn" onClick={legacyTestActions.onStartTestDrive}>Test Drive — dados fictícios locais</button><button type="button" className="btn" onClick={legacyTestActions.onOpenDemo}>Ambiente de Demonstração</button><button type="button" className="btn" onClick={legacyTestActions.onPrepareOfficial}>Preparar publicação oficial</button></section>}
+    </main>
   );
 }

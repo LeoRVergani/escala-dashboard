@@ -32,7 +32,7 @@ describe('AppShell — navegação principal integrada ao App (FASE 14E)', () =>
 
     // Navega para a Home e depois de volta para a Grade - nenhum recarregamento do App
     // acontece (é troca de seção, não de rota), então o rascunho em memória não é tocado.
-    await user.click(screen.getByRole('tab', { name: 'Início' }));
+    await user.click(screen.getByRole('tab', { name: 'Minhas equipes' }));
     expect(screen.queryByRole('grid', { name: /grade mensal/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Criar escala vazia' })).toBeInTheDocument();
 

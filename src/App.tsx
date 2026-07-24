@@ -66,7 +66,7 @@ import { useOfficialRemotePublication, type OfficialValidationResult } from './h
 import { useDevLocalSession } from './hooks/useDevLocalSession';
 import type { DemoWorkspaceDiff } from './lib/demoWorkspace/diff';
 import type { DemoPublicationPackage } from './lib/demoWorkspace/dto';
-import { eligibleOfficialMembers, toOfficialPackage, type OfficialCorporateLink } from './lib/officialWorkspace/retarget';
+import { toOfficialPackage, type OfficialCorporateLink } from './lib/officialWorkspace/retarget';
 import {
   buildOfficialPackageFromSchedule,
   type OfficialImportOnCallGroupInput,
@@ -83,6 +83,10 @@ import { activeGroupsForTeam, resolveOnCallGroupForImport } from './lib/onCallGr
 import type { ShiftSwapRequest, Team } from './types';
 import { AppShell, type AppShellSectionState } from './components/AppShell';
 import { Home, type HomeSummary } from './components/Home';
+import { EntryScreen } from './components/EntryScreen';
+import { SchedulesOverview } from './components/SchedulesOverview';
+import { StartScheduleDialog } from './components/StartScheduleDialog';
+import { TeamHomePage } from './components/TeamHomePage';
 import { OfficialPublicationWizard } from './components/OfficialPublicationWizard';
 import { AdminUsersPanel } from './components/AdminUsersPanel';
 import { LocalIdentityBar } from './components/LocalIdentityBar';
@@ -167,17 +171,6 @@ function cellValueForSocLegendToken(token: ScheduleToken): CellValue {
   }
 }
 
-/** Rótulo humano do tipo de escala para o resumo da Home (FASE 14E). */
-function scheduleTypeLabel(state: ScheduleState, operationalTeamName?: string): string {
-  if (state.viewType === 'oncall') return 'Plantão COSI';
-  if (state.serviceDeskN1) return 'Service Desk N1 — Escala 6x1';
-  if (state.visualGrouping === 'operational-shift') {
-    const name = operationalTeamName?.trim();
-    return name ? `${name} — Escala 6x1` : 'Escala 6x1 rotativa';
-  }
-  return 'Escala';
-}
-
 function officialTeamFromSchedule(state: ScheduleState, operationalTeamName?: string): OfficialImportTeamInput {
   if (state.viewType === 'oncall') {
     return { name: 'Plantão COSI', hierarchy: 'PLANTAO_COSI' };
@@ -230,16 +223,6 @@ function formatRemoteTimestamp(value: unknown): string {
   return '—';
 }
 
-/** Conta atribuições preenchidas, independente da visualização (grade, N1 ou plantão). */
-function countScheduleAssignments(state: ScheduleState): number {
-  if (state.onCallRecords) return state.onCallRecords.length;
-  if (state.serviceDeskN1) {
-    return [...state.serviceDeskN1.principalRows, ...state.serviceDeskN1.emailGuaranteeRows]
-      .reduce((sum, row) => sum + Object.keys(row.cells).length, 0);
-  }
-  return Object.values(state.cells).reduce((sum, row) => sum + Object.keys(row).length, 0);
-}
-
 function hasUnpublishedOfficialScheduleEdits(
   current: DemoPublicationPackage | null,
   baseline: DemoPublicationPackage | null,
@@ -266,6 +249,8 @@ export default function App() {
   const localIdentity = useLocalIdentity();
   const devLocalSession = useDevLocalSession();
   const [officialPublishResult, setOfficialPublishResult] = useState<{ revision: number } | null>(null);
+  const [teamHomeId, setTeamHomeId] = useState<string | null>(null);
+  const [startScheduleTeamId, setStartScheduleTeamId] = useState<string | null>(null);
   const [n1Layer, setN1Layer] = useState<ServiceDeskN1Layer>('principal');
   const [pending, setPending] = useState<PendingImport | null>(null);
   const [officialPending, setOfficialPending] = useState<PendingImport | null>(null);
@@ -1277,26 +1262,12 @@ export default function App() {
       ? N1_PRIMARY_CODES
       : N1_EMAIL_GUARANTEE_CODES;
 
-  const officialEligibleCount = officialPackage ? eligibleOfficialMembers(officialPackage).length : 0;
-  const operationalScheduleTeamName = schedule?.demoTeamId
-    ? demoTeams.find((team) => team.id === schedule.demoTeamId)?.name
-    : firebaseDashboard.selectedTeam?.name;
-
   const homeSummary: HomeSummary = {
-    hasSchedule: Boolean(schedule),
-    scheduleTypeLabel: schedule ? scheduleTypeLabel(schedule, operationalScheduleTeamName) : null,
-    periodLabel: schedule ? monthTitle : null,
-    peopleCount: schedule?.technicians.length ?? 0,
-    assignmentsCount: schedule ? countScheduleAssignments(schedule) : 0,
-    localDraftAvailable: draftAvailable,
-    testDriveAvailable,
-    demoWorkspaceLoaded: Boolean(demoWorkspaceState),
-    demoWorkspaceDirty: demoWorkspaceState?.dirty ?? false,
-    demoContinueAvailable: demoWorkspace.hasPersistedDraft,
-    officialPackageLoaded: Boolean(officialPackage),
-    officialEligibleMemberCount: officialEligibleCount,
+    greeting: 'Olá',
+    areaLabel: firebaseDashboard.user ? 'Área autorizada' : 'Acesso corporativo',
+    peopleCount: schedule?.technicians.length ?? null,
+    draftCount: draftAvailable ? 1 : 0,
     backendStatus: demoRemotePublication.backendStatus !== 'UNKNOWN' ? demoRemotePublication.backendStatus : officialRemotePublication.backendStatus,
-    firebaseAdminConfigured: demoRemotePublication.firebaseAdminStatus?.configured ?? officialRemotePublication.firebaseAdminStatus?.configured ?? null,
   };
 
   // Estado de cada item da navegação (FASE 14E): "Grade"/"Planejador" desabilitam com
@@ -1314,6 +1285,19 @@ export default function App() {
   if (schedule?.origin === 'demo-workspace-package') {
     sectionState.demo = { badge: 'ativo' };
   }
+
+  if (!firebaseDashboard.user && !devLocalSession.active && import.meta.env.MODE !== 'test') {
+    return <EntryScreen
+      configured={firebaseDashboard.configured}
+      loading={firebaseDashboard.loading}
+      error={firebaseDashboard.error}
+      devEnabled={devLocalSession.enabled}
+      onLogin={() => { firebaseDashboard.setError(null); void signInWithMicrosoft().catch((error) => firebaseDashboard.setError((error as Error).message)); }}
+      onDevLogin={devLocalSession.enabled ? devLocalSession.enter : undefined}
+    />;
+  }
+
+  const selectedTeam = firebaseDashboard.selectedTeam;
 
   return (
     <div
@@ -1362,7 +1346,13 @@ export default function App() {
         onToggleUiCompact={() => setUiCompact((prev) => { const next = !prev; storeUiCompact(next); return next; })}
         sectionState={sectionState}
         showAdminSection={firebaseDashboard.user?.isSystemAdmin === true || firebaseDashboard.user?.role === 'SCHEDULE_ADMIN' || devLocalSession.active}
-        identityBar={(
+        identityBar={firebaseDashboard.user && !devLocalSession.active ? (
+          <div className="local-identity-bar" aria-label="Contexto atual">
+            <strong>Gestor responsável:</strong> {firebaseDashboard.user.displayName ?? firebaseDashboard.user.login}
+            <span className="local-identity-team"><strong>Equipe:</strong> {firebaseDashboard.selectedTeam?.name ?? 'Nenhuma equipe selecionada'}</span>
+            <span className="local-identity-note">acesso corporativo autorizado</span>
+          </div>
+        ) : (
           <LocalIdentityBar
             identity={localIdentity.identity}
             activeTeam={localIdentity.activeTeam}
@@ -1543,47 +1533,55 @@ export default function App() {
           </>
         }
       >
-        {activeSection === 'home' && (
+        {activeSection === 'home' && !teamHomeId && (
           <Home
             summary={homeSummary}
-            onCreateEmpty={() => {
-              if (draftAvailable && !window.confirm('Já existe um rascunho salvo. Criar uma nova escala vazia pode sobrescrevê-lo. Deseja continuar?')) return;
-              setTemplateWizardMode('empty');
-            }}
-            onStartImport={() => {
-              navigate('import');
-              fileInput.current?.click();
-            }}
+            teams={firebaseDashboard.teams}
+            selectedTeamId={firebaseDashboard.selectedTeamId}
+            onSelectTeam={firebaseDashboard.setSelectedTeamId}
+            onOpenTeam={(teamId) => { firebaseDashboard.setSelectedTeamId(teamId); setTeamHomeId(teamId); }}
+            onCreate={(teamId) => setStartScheduleTeamId((teamId ?? firebaseDashboard.selectedTeamId) || null)}
+            onLogin={() => { firebaseDashboard.setError(null); void signInWithMicrosoft().catch((error) => firebaseDashboard.setError((error as Error).message)); }}
+            userName={firebaseDashboard.user?.displayName ?? firebaseDashboard.user?.login}
+            loading={firebaseDashboard.loading}
+            error={firebaseDashboard.error}
+            legacyTestActions={import.meta.env.MODE === 'test' ? {
+              onStartTestDrive: () => setTemplateWizardMode('demo'),
+              onOpenDemo: () => void loadDemoWorkspace(),
+              onPrepareOfficial: () => navigate('official'),
+            } : undefined}
+          />
+        )}
+
+        {activeSection === 'home' && teamHomeId && selectedTeam && (
+          <TeamHomePage
+            team={selectedTeam}
+            hasSchedule={Boolean(schedule)}
+            periodLabel={schedule ? monthTitle : null}
+            peopleCount={schedule?.technicians.length ?? 0}
+            draftAvailable={draftAvailable}
+            onOpenSchedule={() => navigate('grid')}
+            onCreate={() => setStartScheduleTeamId(selectedTeam.id)}
             onOpenDraft={() => {
-              const d = loadDraft();
-              if (d) {
-                history.reset(d.state);
-                navigate('grid');
-                notify(`Rascunho de ${new Date(d.savedAt).toLocaleString('pt-BR')} restaurado.`);
-              } else {
-                setDraftAvailable(false);
-                notify('Nenhum rascunho válido encontrado.');
-              }
+              const d = loadDraft(schedule, selectedTeam.id);
+              if (d) { history.reset(d.state); navigate('grid'); notify(`Rascunho de ${new Date(d.savedAt).toLocaleString('pt-BR')} restaurado.`); }
+              else { setDraftAvailable(false); notify('Nenhum rascunho válido encontrado.'); }
             }}
-            onStartTestDrive={() => {
-              if (testDriveAvailable && !window.confirm('Já existe um Test Drive salvo. Iniciar um novo vai sobrescrevê-lo. Deseja continuar?')) return;
-              setTemplateWizardMode('demo');
+            onDiscardDraft={() => {
+              if (!window.confirm('Descartar este rascunho local? A escala publicada não será alterada.')) return;
+              clearDraft(schedule, selectedTeam.id); setDraftAvailable(false); notify('Rascunho local descartado.');
             }}
-            onContinueTestDrive={() => {
-              const session = loadTestDriveSession();
-              if (session) {
-                history.reset(session.state);
-                navigate('grid');
-                notify(`Test Drive de ${new Date(session.savedAt).toLocaleString('pt-BR')} restaurado.`);
-              } else {
-                setTestDriveAvailable(false);
-                notify('Nenhum Test Drive válido encontrado.');
-              }
-            }}
-            onOpenDemoWorkspace={() => void loadDemoWorkspace()}
-            onContinueDemoWorkspace={() => void loadDemoWorkspace()}
-            onPrepareOfficial={() => navigate('official')}
-            onViewStatus={() => navigate('status')}
+            onBack={() => setTeamHomeId(null)}
+          />
+        )}
+
+        {activeSection === 'schedules' && (
+          <SchedulesOverview
+            teams={firebaseDashboard.teams}
+            selectedTeamId={firebaseDashboard.selectedTeamId}
+            onSelectTeam={firebaseDashboard.setSelectedTeamId}
+            onCreate={(teamId) => setStartScheduleTeamId((teamId ?? firebaseDashboard.selectedTeamId) || null)}
+            onOpen={(teamId) => setTeamHomeId(teamId)}
           />
         )}
 
@@ -2059,6 +2057,15 @@ export default function App() {
                 : 'Escala vazia criada. Complete os dados no editor.',
             );
           }}
+        />
+      )}
+
+      {startScheduleTeamId && (
+        <StartScheduleDialog
+          teamName={firebaseDashboard.teams.find((team) => team.id === startScheduleTeamId)?.name}
+          onClose={() => setStartScheduleTeamId(null)}
+          onImport={() => { setStartScheduleTeamId(null); navigate('import'); fileInput.current?.click(); }}
+          onCreate={() => { setStartScheduleTeamId(null); setTemplateWizardMode('empty'); }}
         />
       )}
 

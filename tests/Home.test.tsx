@@ -1,109 +1,43 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { ComponentProps } from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Home, type HomeSummary } from '../src/components/Home';
+import type { Team } from '../src/types';
 
-const baseSummary: HomeSummary = {
-  hasSchedule: false,
-  scheduleTypeLabel: null,
-  periodLabel: null,
-  peopleCount: 0,
-  assignmentsCount: 0,
-  localDraftAvailable: false,
-  testDriveAvailable: false,
-  demoWorkspaceLoaded: false,
-  demoWorkspaceDirty: false,
-  demoContinueAvailable: false,
-  officialPackageLoaded: false,
-  officialEligibleMemberCount: 0,
-  backendStatus: 'UNKNOWN',
-  firebaseAdminConfigured: null,
-};
+const summary: HomeSummary = { greeting: 'Olá', areaLabel: 'COSI', peopleCount: null, draftCount: 0, backendStatus: 'ONLINE' };
+const teams: Team[] = [
+  { id: 'soc', code: 'SOC', name: 'SOC — Escala 6x1', responsibleLogin: 'gestor', scheduleKind: 'REGULAR', active: true, allowedImportLayouts: [] },
+  { id: 'noc', code: 'NOC', name: 'NOC — Escala 6x1', responsibleLogin: 'gestor', scheduleKind: 'REGULAR', active: true, allowedImportLayouts: [] },
+];
 
-function renderHome(summary: Partial<HomeSummary> = {}) {
-  const handlers = {
-    onCreateEmpty: vi.fn(),
-    onStartImport: vi.fn(),
-    onOpenDraft: vi.fn(),
-    onStartTestDrive: vi.fn(),
-    onContinueTestDrive: vi.fn(),
-    onOpenDemoWorkspace: vi.fn(),
-    onContinueDemoWorkspace: vi.fn(),
-    onPrepareOfficial: vi.fn(),
-    onViewStatus: vi.fn(),
-  };
-  const utils = render(<Home summary={{ ...baseSummary, ...summary }} {...handlers} />);
+function renderHome(overrides: Partial<ComponentProps<typeof Home>> = {}) {
+  const handlers = { onSelectTeam: vi.fn(), onOpenTeam: vi.fn(), onCreate: vi.fn(), onLogin: vi.fn() };
+  const utils = render(<Home summary={summary} teams={teams} selectedTeamId="soc" userName="Gestor" {...handlers} {...overrides} />);
   return { ...handlers, ...utils };
 }
 
-describe('Home — tela inicial (FASE 14E)', () => {
-  it('renderiza os cartões principais sem mostrar grade nem formulários', () => {
+describe('Home — Minhas equipes', () => {
+  it('renderiza equipes reais separadas e sem dados fixos de período', () => {
     renderHome();
-    expect(screen.getByRole('button', { name: 'Criar escala vazia' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Importar arquivo' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /test drive/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Ambiente de Demonstração' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Preparar publicação oficial' })).toBeInTheDocument();
-    // Nada de grade/planejador/formulário oficial nesta tela.
-    expect(screen.queryByRole('grid')).not.toBeInTheDocument();
-    expect(screen.queryByText(/vínculo da conta corporativa/i)).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'SOC — Escala 6x1' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'NOC — Escala 6x1' })).toBeInTheDocument();
+    expect(screen.getAllByText('Não carregado').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Firebase Admin|workspace|dry-run/i)).not.toBeInTheDocument();
   });
 
-  it('navega para cada ação ao clicar no respectivo cartão', async () => {
+  it('abre equipe e solicita novo período pelos callbacks reais', async () => {
     const user = userEvent.setup();
     const handlers = renderHome();
-
-    await user.click(screen.getByRole('button', { name: 'Criar escala vazia' }));
-    expect(handlers.onCreateEmpty).toHaveBeenCalledTimes(1);
-
-    await user.click(screen.getByRole('button', { name: 'Importar arquivo' }));
-    expect(handlers.onStartImport).toHaveBeenCalledTimes(1);
-
-    await user.click(screen.getByRole('button', { name: 'Preparar publicação oficial' }));
-    expect(handlers.onPrepareOfficial).toHaveBeenCalledTimes(1);
-
-    await user.click(screen.getByRole('button', { name: /ver status remoto/i }));
-    expect(handlers.onViewStatus).toHaveBeenCalledTimes(1);
+    await user.click(screen.getAllByRole('button', { name: 'Abrir equipe' })[0]);
+    expect(handlers.onOpenTeam).toHaveBeenCalledWith('soc');
+    await user.click(screen.getByRole('button', { name: 'Cadastrar período' }));
+    expect(handlers.onCreate).toHaveBeenCalledWith('soc');
   });
 
-  it('não mostra "Continuar X" quando nenhuma sessão está disponível', () => {
-    renderHome();
-    expect(screen.queryByRole('button', { name: 'Continuar Test Drive' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Continuar Ambiente de Demonstração' })).not.toBeInTheDocument();
-  });
-
-  it('mostra "Continuar X" quando a respectiva sessão está disponível', () => {
-    renderHome({ localDraftAvailable: true, testDriveAvailable: true, demoContinueAvailable: true });
-    expect(screen.getByRole('button', { name: 'Continuar Test Drive' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Continuar Ambiente de Demonstração' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Abrir rascunho atual' })).toBeEnabled();
-  });
-
-  it('desabilita "Abrir rascunho atual" quando não há rascunho local', () => {
-    renderHome({ localDraftAvailable: false });
-    expect(screen.getByRole('button', { name: 'Abrir rascunho atual' })).toBeDisabled();
-  });
-
-  it('mostra no resumo o status Demo/Oficial/backend/Firebase Admin', () => {
-    renderHome({
-      hasSchedule: true,
-      scheduleTypeLabel: 'SOC — Escala 6x1',
-      periodLabel: '26/07 a 25/08/2026',
-      peopleCount: 6,
-      assignmentsCount: 120,
-      demoWorkspaceLoaded: true,
-      demoWorkspaceDirty: true,
-      officialPackageLoaded: true,
-      officialEligibleMemberCount: 0,
-      backendStatus: 'ONLINE',
-      firebaseAdminConfigured: false,
-    });
-
-    expect(screen.getByText('SOC — Escala 6x1')).toBeInTheDocument();
-    expect(screen.getByText('26/07 a 25/08/2026')).toBeInTheDocument();
-    expect(screen.getByText('Carregado · alterações locais')).toBeInTheDocument();
-    expect(screen.getByText(/sem membros elegíveis/i)).toBeInTheDocument();
-    expect(screen.getByText('Backend online')).toBeInTheDocument();
-    expect(screen.getByText('Não configurado')).toBeInTheDocument();
+  it('mostra estado vazio sem oferecer uma ação proibida', () => {
+    renderHome({ teams: [] });
+    expect(screen.getByRole('heading', { name: 'Nenhuma equipe disponível' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Cadastrar período' })).toBeDisabled();
   });
 });
