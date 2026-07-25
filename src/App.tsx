@@ -42,7 +42,6 @@ import { OnCallEditor } from './components/OnCallEditor';
 import { FolgaAccountingPanel } from './components/FolgaAccountingPanel';
 import { SocPlanner } from './components/SocPlanner';
 import { ConflictAlertsPanel } from './components/ConflictAlertsPanel';
-import { FirebaseDashboardBar } from './components/FirebaseDashboardBar';
 import { DemoWorkspaceBanner } from './components/DemoWorkspaceBanner';
 import { DemoScenarioSummary } from './components/DemoScenarioSummary';
 import { DemoPublicationPanel } from './components/DemoPublicationPanel';
@@ -83,6 +82,8 @@ import { activeGroupsForTeam, resolveOnCallGroupForImport } from './lib/onCallGr
 import type { ShiftSwapRequest, Team } from './types';
 import { AppShell, type AppShellSectionState } from './components/AppShell';
 import { AppToast } from './components/ui/AppToast';
+import { AppButton } from './components/ui/AppButton';
+import { AppAlert } from './components/ui/AppAlert';
 import { Home, type HomeSummary } from './components/Home';
 import { EntryScreen } from './components/EntryScreen';
 import { SchedulesOverview } from './components/SchedulesOverview';
@@ -1393,11 +1394,7 @@ export default function App() {
         topBar={
           <>
             <header className="topbar">
-              <div className="brand">
-                Painel de Escalas
-                <small>v{APP_VERSION} · Importar/Criar → Revisar → Publicar</small>
-              </div>
-              {schedule && (
+              {schedule && (activeSection === 'grid' || activeSection === 'planner') && (
                 <>
                   <div className="month-title">
                     {monthTitle}
@@ -1409,20 +1406,16 @@ export default function App() {
                     )}
                   </div>
                   <div className="toolbar" role="toolbar" aria-label="Ações da escala">
-                    <button className="btn" onClick={() => fileInput.current?.click()}>
-                      Importar arquivo
-                    </button>
                     {(activeSection === 'grid' || activeSection === 'planner') && (
                       <>
-                        <button className="btn" onClick={history.undo} disabled={!history.canUndo}>
+                        <AppButton onClick={history.undo} disabled={!history.canUndo}>
                           Desfazer
-                        </button>
-                        <button className="btn" onClick={history.redo} disabled={!history.canRedo}>
+                        </AppButton>
+                        <AppButton onClick={history.redo} disabled={!history.canRedo}>
                           Refazer
-                        </button>
+                        </AppButton>
                         {schedule.viewType !== 'oncall' && (
-                          <button
-                            className="btn"
+                          <AppButton
                             disabled={selection.size === 0}
                             onClick={() => {
                               applyShift([...selection], null);
@@ -1430,12 +1423,12 @@ export default function App() {
                             }}
                           >
                             Limpar seleção
-                          </button>
+                          </AppButton>
                         )}
                       </>
                     )}
-                    <button
-                      className="btn"
+                    <AppButton
+                      disabled={!firebaseDashboard.selectedTeamId}
                       onClick={() => {
                         if (schedule.origin === 'demo-template') {
                           saveTestDriveSession(schedule);
@@ -1444,18 +1437,25 @@ export default function App() {
                         } else if (schedule.origin === 'demo-workspace-package') {
                           demoWorkspace.saveLocalRevision();
                           notify('Revisão local do Ambiente de Demonstração registrada neste navegador.');
-                        } else {
-                          saveDraft(schedule, firebaseDashboard.selectedTeamId || undefined);
+                        } else if (firebaseDashboard.selectedTeam) {
+                          saveDraft(schedule, firebaseDashboard.selectedTeam.id);
                           setDraftAvailable(true);
-                          notify('Rascunho salvo neste navegador.');
+                          notify(`Rascunho salvo para ${firebaseDashboard.selectedTeam.name}.`);
                         }
                       }}
                     >
                       Salvar rascunho
-                    </button>
-                    <button className="btn btn-primary" onClick={() => exportScheduleFile(schedule)}>
+                    </AppButton>
+                    <AppButton variant="primary" onClick={() => exportScheduleFile(schedule)}>
                       Exportar XLSX
-                    </button>
+                    </AppButton>
+                    <AppButton
+                      variant="primary"
+                      disabled={!(firebaseDashboard.user && firebaseDashboard.selectedTeam && !schedule.isDemo && schedule.technicians.length && (schedule.viewType === 'oncall' ? schedule.onCallRecords?.length : Object.values(schedule.cells).some((row) => Object.values(row).some(Boolean))))}
+                      onClick={() => void openPublication()}
+                    >
+                      Publicar escala
+                    </AppButton>
                     {(activeSection === 'grid' || activeSection === 'planner') && schedule.viewType !== 'oncall' && (
                       <button
                         className={`conflict-chip${conflicts.length ? ' has' : ''}`}
@@ -1468,41 +1468,26 @@ export default function App() {
                   </div>
                 </>
               )}
+              <div className="toolbar" role="toolbar" aria-label="Sessão">
+                <small className="muted">v{APP_VERSION}</small>
+                <AppButton disabled={!firebaseDashboard.user || !firebaseDashboard.teams.length} onClick={() => void openSwaps()}>
+                  Trocas
+                </AppButton>
+                {firebaseDashboard.user ? (
+                  <AppButton onClick={() => void signOutDashboard().catch((error) => firebaseDashboard.setError((error as Error).message))}>
+                    Sair
+                  </AppButton>
+                ) : (
+                  <AppButton
+                    disabled={!firebaseDashboard.configured}
+                    onClick={() => { firebaseDashboard.setError(null); void signInWithMicrosoft().catch((error) => firebaseDashboard.setError((error as Error).message)); }}
+                  >
+                    Entrar com Microsoft
+                  </AppButton>
+                )}
+                {firebaseDashboard.error && <AppAlert variant="error">{firebaseDashboard.error}</AppAlert>}
+              </div>
             </header>
-
-            <FirebaseDashboardBar
-              configured={firebaseDashboard.configured}
-              user={firebaseDashboard.user}
-              teams={firebaseDashboard.teams}
-              selectedTeamId={firebaseDashboard.selectedTeamId}
-              loading={firebaseDashboard.loading || firebaseBusy}
-              error={firebaseDashboard.error}
-              devSessionActive={devLocalSession.active}
-              devSessionLogin={devLocalSession.login}
-              hasSchedule={Boolean(schedule)}
-              canPublish={Boolean(schedule && firebaseDashboard.user && firebaseDashboard.selectedTeam && !schedule.isDemo && schedule.technicians.length && (schedule.viewType === 'oncall' ? schedule.onCallRecords?.length : Object.values(schedule.cells).some((row) => Object.values(row).some(Boolean))))}
-              onTeamChange={firebaseDashboard.setSelectedTeamId}
-              onLogin={() => { firebaseDashboard.setError(null); void signInWithMicrosoft().catch((error) => firebaseDashboard.setError((error as Error).message)); }}
-              onLogout={() => void signOutDashboard().catch((error) => firebaseDashboard.setError((error as Error).message))}
-              onImport={() => fileInput.current?.click()}
-              onSaveDraft={() => {
-                if (schedule?.origin === 'demo-template') {
-                  saveTestDriveSession(schedule);
-                  setTestDriveAvailable(true);
-                  notify('Test Drive salvo neste navegador.');
-                } else if (schedule?.origin === 'demo-workspace-package') {
-                  demoWorkspace.saveLocalRevision();
-                  notify('Revisão local do Ambiente de Demonstração registrada neste navegador.');
-                } else if (schedule && firebaseDashboard.selectedTeam) {
-                  saveDraft(schedule, firebaseDashboard.selectedTeam.id);
-                  setDraftAvailable(true);
-                  notify(`Rascunho salvo para ${firebaseDashboard.selectedTeam.name}.`);
-                }
-              }}
-              onPublish={() => void openPublication()}
-              onSwaps={() => void openSwaps()}
-              onManageTeams={() => setShowTeamDialog(true)}
-            />
 
             {schedule && schedule.origin === 'demo-template' && (
               <div className="n1-modebar" role="status">
@@ -1992,13 +1977,20 @@ export default function App() {
         )}
 
         {activeSection === 'admin' && (
-          <AdminUsersPanel
-            user={firebaseDashboard.user}
-            teams={firebaseDashboard.teams}
-            onCallGroups={onCallGroups}
-            onReloadOnCallGroups={reloadOnCallGroups}
-            devSessionActive={devLocalSession.active}
-          />
+          <>
+            {firebaseDashboard.user?.isSystemAdmin && (
+              <div className="official-publication-actions">
+                <AppButton onClick={() => setShowTeamDialog(true)}>Cadastrar/editar equipe</AppButton>
+              </div>
+            )}
+            <AdminUsersPanel
+              user={firebaseDashboard.user}
+              teams={firebaseDashboard.teams}
+              onCallGroups={onCallGroups}
+              onReloadOnCallGroups={reloadOnCallGroups}
+              devSessionActive={devLocalSession.active}
+            />
+          </>
         )}
 
         {activeSection === 'settings' && (

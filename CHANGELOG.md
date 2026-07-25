@@ -2,6 +2,16 @@
 
 ## 1.16.0 — 23/07/2026
 
+- **Checkpoint 3 — remove a casca legada e consolida o cabeçalho contextual** (spec 12).
+  Elimina o `<header className="topbar">` genérico e o `FirebaseDashboardBar` (sempre visíveis
+  em toda tela, duplicando ações já presentes no menu lateral e em cada seção). Cabeçalho
+  contextual novo: período/Desfazer/Refazer/Limpar seleção/Salvar rascunho/Exportar XLSX/
+  Publicar escala/Alertas aparecem só em Grade/Planejador; Trocas e Entrar/Sair viram uma área
+  de sessão persistente; "Cadastrar/editar equipe" (antes "Equipes") migra para dentro da
+  seção Administração. O seletor de equipe do topbar foi removido (Home/Escalas já oferecem o
+  mesmo). Corrige `--shadow-lg` (nunca definida), remove a classe morta `.shell--orbit-dark` e
+  o bloco CSS morto `.home`/`.home-card*`. 511 → 510 testes (um teste de classe morta
+  removido).
 - **Frente B1 — design system: componentes padrão** (spec
   `docs/spec/13-DASHBOARD-DESIGN-SYSTEM-COMPONENTES-PADRAO.md`). Adiciona
   `AppButton`/`AppDialog`/`AppConfirm`/`AppAlert`/`AppToast`/`AppDrawer` em

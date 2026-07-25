@@ -61,7 +61,7 @@ export function AppShell({
   };
 
   return (
-    <div className={`shell shell--orbit-dark${navCollapsed ? ' nav-collapsed' : ''}${uiCompact ? ' ui-compact' : ''}`}>
+    <div className={`shell${navCollapsed ? ' nav-collapsed' : ''}${uiCompact ? ' ui-compact' : ''}`}>
       <button
         type="button"
         className="shell-mobile-nav-toggle"

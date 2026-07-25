@@ -68,11 +68,6 @@ describe('AppShell — navegação principal (FASE 14E)', () => {
     expect(container.querySelector('.shell')).toHaveClass('ui-compact');
   });
 
-  it('marca o shell com a fundação dark-only Órbita de Turnos', () => {
-    const { container } = renderShell();
-    expect(container.querySelector('.shell')).toHaveClass('shell--orbit-dark');
-  });
-
   it('chama onToggleUiCompact ao marcar a caixa "Modo compacto"', async () => {
     const user = userEvent.setup();
     const { onToggleUiCompact } = renderShell();

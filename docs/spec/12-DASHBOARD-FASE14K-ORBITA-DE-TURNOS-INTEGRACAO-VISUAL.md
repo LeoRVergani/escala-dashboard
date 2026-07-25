@@ -351,3 +351,54 @@ Validação do checkpoint:
   `StartScheduleDialog.test.tsx`);
 - Chromium real: ainda pendente para este checkpoint especificamente (ver
   validação consolidada de todo o FASE 14K antes do relatório final).
+
+## Checkpoint 3 — remove a casca legada e consolida o cabeçalho contextual
+
+Base: Frente B1 (design system, spec 13) já commitada. Objetivo: eliminar a duplicação visual
+descrita pelo usuário (barra "Painel de Escalas" + `FirebaseDashboardBar` sempre visíveis em
+cima do shell novo, repetindo ações que o menu lateral e cada tela já ofereciam).
+
+### Inventário e destino de cada ação (antes de remover qualquer coisa)
+
+| Ação legada | Onde vivia | Destino |
+|---|---|---|
+| Título "Painel de Escalas" + versão | `<header className="topbar">`, sempre visível | Removido (decorativo, já redundante com a marca `Escala ICI` do `AppShell`); `v{APP_VERSION}` preservado (exigido por `tests/version.test.ts`) na área de sessão do cabeçalho. |
+| Título do mês + badge demo/origem | idem, sempre visível quando `schedule` truthy | Vira contextual: só aparece em `grid`/`planner` (onde não existe cabeçalho de período próprio). `TeamHomePage` já mostra o período por conta própria. |
+| "Importar arquivo" | topbar **e** `FirebaseDashboardBar` **e** seção `import` (triplicado) | Removido das duas cópias globais — a seção `import` já tinha o botão equivalente, ligado ao mesmo `fileInput`. |
+| "Desfazer"/"Refazer"/"Limpar seleção" | topbar, já condicional a `grid`/`planner` | Mantido, só relocado para o cabeçalho contextual (mesmo `activeSection` gate). |
+| "Salvar rascunho" | duplicado (lógica quase idêntica em topbar e `FirebaseDashboardBar`) | Consolidado em uma única implementação (a mais completa, com nome da equipe na notificação), no cabeçalho contextual de `grid`/`planner`. |
+| "Exportar XLSX" | topbar, sempre visível | Relocado para o cabeçalho contextual de `grid`/`planner`. |
+| "Alertas: N" | topbar, já condicional a `grid`/`planner` não-plantão | Mantido — único gatilho do `ConflictAlertsPanel`, só relocado. |
+| Seletor de equipe (`<select>`) | `FirebaseDashboardBar`, sempre visível | **Removido, não relocado** — `Home` e `SchedulesOverview` já oferecem seleção de equipe própria (`onSelectTeam` → o mesmo `firebaseDashboard.setSelectedTeamId`); trocar de equipe durante a edição passa a exigir voltar para "Minhas equipes"/"Escalas" (caminho já existente e descoberto). |
+| "Publicar escala" (genérico) | `FirebaseDashboardBar`, sempre visível, sem outro lugar | Único entre as seções — relocado para o cabeçalho contextual de `grid`/`planner`, mesma condição de habilitação (`canPublish`). |
+| "Trocas" | `FirebaseDashboardBar`, sem outro gatilho em lugar nenhum | Relocado para uma área de sessão persistente no cabeçalho (visível em todas as seções, já que solicitações de troca não são específicas de uma tela). |
+| "Equipes" (`TeamDialog`, só `isSystemAdmin`) | `FirebaseDashboardBar`, sem outro lugar | Relocado para dentro da própria seção "Administração" (botão "Cadastrar/editar equipe" acima do `AdminUsersPanel`, mesmo gate `isSystemAdmin`). |
+| Entrar/Sair | `FirebaseDashboardBar` | Relocado para a mesma área de sessão persistente do cabeçalho (mesmos handlers, `signInWithMicrosoft`/`signOutDashboard`). |
+| Erro do Firebase (`firebaseDashboard.error`) | `FirebaseDashboardBar` | Relocado para a mesma área de sessão, agora via `AppAlert variant="error"`. |
+
+`identityBar` (branch do usuário real vs. `LocalIdentityBar` do modo local/dev) não foi alterado —
+já não duplicava nenhuma ação do topbar/`FirebaseDashboardBar`.
+
+### Débito de CSS reconciliado
+
+- `--shadow-lg`, referenciada por `.entry-screen__visual`/`.start-schedule-dialog` mas nunca
+  definida, agora existe (`var(--orbit-shadow)`, mesmo valor de `--shadow`).
+- `.shell--orbit-dark` (modificador sem nenhuma regra CSS) removido de `AppShell.tsx` — o
+  dark-only real já é garantido por `:root { color-scheme: dark }` desde o Checkpoint 1. O teste
+  que afirmava a presença dessa classe (`AppShell.test.tsx`) foi removido junto, por afirmar uma
+  classe morta.
+- Bloco CSS `.home`/`.home-summary`/`.home-cards`/`.home-card*` (zero uso em qualquer `.tsx`,
+  confirmado por busca) removido. O seletor de modo compacto que os referenciava
+  (`.shell.ui-compact .home-card, .home-summary`) foi corrigido para apontar às classes
+  realmente vivas (`.orbit-team-card`, `.team-home-summary`), preservando a intenção original
+  (reduzir padding no modo compacto) em vez de simplesmente apagá-la.
+
+### Validação
+
+- `npm run typecheck`, `npm run test` (511 → 510, um teste de classe morta removido, nenhum
+  outro) e `npm run build` verdes; `git diff --check` limpo.
+- Chromium real (mesmo servidor de teste local `claudio`): "Minhas equipes" e "Administração"
+  confirmadas — cabeçalho reduzido a uma única linha discreta (`v1.16.0` + "Trocas" +
+  "Entrar com Microsoft"/"Sair"), sem nenhuma ação duplicada visível, console sem erros.
+- Validação completa em `grid`/`planner`/`import` com uma equipe real carregada fica para a
+  validação consolidada do Checkpoint 4 (que ainda vai tocar essas mesmas telas).

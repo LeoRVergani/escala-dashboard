@@ -101,6 +101,7 @@
   --toast-fg: var(--orbit-text-primary);
   --radius: 8px;
   --shadow: var(--orbit-shadow);
+  --shadow-lg: var(--orbit-shadow);
 
   --sh-madrugada-bg: rgba(109, 92, 231, 0.18); --sh-madrugada-fg: #B8AEFF;
   --sh-manha-bg: rgba(255, 210, 28, 0.14);     --sh-manha-fg: #FFE76E;
@@ -1541,10 +1542,10 @@ details.block li { margin: 2px 0; }
 
 .shell-content { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
 .shell.ui-compact .shell-content { padding: 8px; gap: 8px; }
-.shell.ui-compact .home-card,
+.shell.ui-compact .orbit-team-card,
 .shell.ui-compact .status-card,
 .shell.ui-compact .official-wizard-panel,
-.shell.ui-compact .home-summary { padding: 8px; }
+.shell.ui-compact .team-home-summary { padding: 8px; }
 .shell.ui-compact .btn { padding: 5px 9px; }
 
 .shell-back-to-top {
@@ -1704,24 +1705,6 @@ details.block li { margin: 2px 0; }
   font-size: 11px;
   font-weight: 600;
 }
-
-/* ---------- Home ---------- */
-
-.home { display: flex; flex-direction: column; gap: 20px; }
-
-.home-summary { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
-.home-summary h2 { margin: 0 0 10px; font-size: 15px; }
-.home-summary dl { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin: 0 0 12px; }
-.home-summary dl > div { display: flex; flex-direction: column; gap: 2px; }
-.home-summary dt { color: var(--ink-soft); font-size: 11px; font-weight: 800; text-transform: uppercase; }
-.home-summary dd { margin: 0; font-size: 14px; font-weight: 700; overflow-wrap: anywhere; }
-
-.home-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
-.home-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 10px; }
-.home-card h3 { margin: 0; font-size: 14px; }
-.home-card p { margin: 0; color: var(--ink-soft); font-size: 13px; flex: 1; }
-.home-card-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.home-card-official { border-color: var(--action); }
 
 /* ---------- Órbita de Turnos: entrada e equipes ---------- */
 .entry-screen { min-height: 100vh; display: flex; flex-direction: column; padding: 28px clamp(20px, 5vw, 72px); background: var(--orbit-background); color: var(--orbit-text-primary); overflow: hidden; }
