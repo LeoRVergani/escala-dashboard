@@ -1966,13 +1966,11 @@ export default function App() {
                 </dl>
               </section>
             </div>
-            <button
-              type="button"
-              className="btn"
+            <AppButton
               onClick={() => { void demoRemotePublication.refreshStatus(); void officialRemotePublication.refreshStatus(); }}
             >
               Atualizar status
-            </button>
+            </AppButton>
           </div>
         )}
 

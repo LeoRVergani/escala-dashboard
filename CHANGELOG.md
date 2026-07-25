@@ -2,6 +2,13 @@
 
 ## 1.16.0 — 23/07/2026
 
+- **Checkpoint 4 — trocas com abas, paleta N1/SOC, Histórico** (spec 12). `SwapRequestsDialog`
+  ganha abas Pendentes/Aprovadas/Recusadas/Concluídas (filtro local sobre os status já
+  existentes, zero mudança de backend; Aprovar/Rejeitar só aparecem para pendentes). Paleta
+  clara residual dos grupos N1/SOC (herança pré-Checkpoint-1) migrada para os tokens `--sh-*`;
+  os 17 códigos de célula do Service Desk N1 mantêm o mesmo tom por código, só invertendo
+  fundo/texto para leitura em tema escuro. "Atualizar status" do Histórico migrado para
+  `AppButton`. 510 → 515 testes.
 - **Checkpoint 3 — remove a casca legada e consolida o cabeçalho contextual** (spec 12).
   Elimina o `<header className="topbar">` genérico e o `FirebaseDashboardBar` (sempre visíveis
   em toda tela, duplicando ações já presentes no menu lateral e em cada seção). Cabeçalho

@@ -402,3 +402,57 @@ já não duplicava nenhuma ação do topbar/`FirebaseDashboardBar`.
   "Entrar com Microsoft"/"Sair"), sem nenhuma ação duplicada visível, console sem erros.
 - Validação completa em `grid`/`planner`/`import` com uma equipe real carregada fica para a
   validação consolidada do Checkpoint 4 (que ainda vai tocar essas mesmas telas).
+
+## Checkpoint 4 — trocas com abas, paleta N1/SOC, casca de Grade/Planejador, Histórico
+
+A maior parte de "Grade/Planejador (casca)" e "fluxo de publicação" já foi coberta pela Frente
+B1 (migração de `ScheduleGrid`/`SocPlanner`/`PublicationDialog`/`OfficialPublicationWizard`/
+`OfficialPublishDialog`/`AdminUsersPanel` para os componentes padrão) — este checkpoint fecha o
+que faltava:
+
+- **`SwapRequestsDialog`**: adicionadas as 4 abas (Pendentes/Aprovadas/Recusadas/Concluídas) como
+  filtro local (`useMemo` sobre `requests`, mesmo padrão de `SchedulesOverview.tsx`), mapeando
+  1:1 os status já existentes (`PENDING`/`APPROVED`/`REJECTED`/`CANCELLED`) — zero mudança de
+  backend. Badge de contagem em "Pendentes". Os botões Aprovar/Rejeitar agora só aparecem na aba
+  Pendentes (antes apareciam para qualquer solicitação, incluindo já decididas — corrige um
+  comportamento que não fazia sentido, não é regressão). `onDecide`/`onClose` preservados
+  exatamente. 5 testes novos (`tests/SwapRequestsDialog.test.tsx`).
+- **Paleta N1/SOC**: as cabeçalhos de grupo por turno (`.n1-group-{madrugada,manha,tarde,noite}
+  th`, `.soc-group-{madrugada,manha,tarde,noite} th`) usavam tons pasteis claros com texto escuro
+  (`#eee9ff`, `#fff4cc`, `#d9f7fb`, `#e2ebff` — resíduo do tema claro anterior ao Checkpoint 1,
+  já sinalizado como dívida na spec original). Migrados para os tokens `--sh-madrugada-bg/fg`
+  etc. já existentes (mesmo turno = mesma cor em qualquer lugar do app agora). As bordas do
+  agrupamento SOC (`rgba(34, 49, 46, ...)`, tom escuro pensado pra fundo claro) foram trocadas
+  por `--line`/`--line-strong`. Os 17 códigos de célula do Service Desk N1 (`.n1-code-1..6`,
+  `M`, `M1-M4`, `F`, `X`, `AUS`, `E`, `G`, `T`) mantêm exatamente o mesmo tom de origem (nenhum
+  código mudou de cor/significado), só invertida a relação fundo/texto: o tom original vira a cor
+  do texto (já claro o bastante pra ler em fundo escuro) e o fundo passa a ser esse mesmo tom
+  bem diluído sobre `--card` (`color-mix(in srgb, <tom original> 20%, var(--card))`) — mesmo
+  princípio já usado pelos tokens `--sh-*`.
+- **Histórico de publicações**: botão "Atualizar status" migrado para `AppButton`. O conteúdo
+  em si continua mostrando diagnóstico técnico (Backend/Firebase Admin/revisão ativa/status) em
+  vez de uma linha do tempo de publicações por equipe (como o protótipo Manus mostra) — isso
+  exigiria um modelo de dados novo (histórico de publicações por equipe, hoje não exposto por
+  nenhum hook existente), fora do escopo de um checkpoint visual. Registrado como pendência
+  real, não implementado aqui.
+- **Administração**: já coberta pela Frente B1 (`AdminUsersPanel`) e pelo Checkpoint 3 (botão
+  "Cadastrar/editar equipe").
+
+### Testes e validação
+
+- `npm run typecheck`, `npm run test` (510 → 515, 5 testes novos de `SwapRequestsDialog`) e
+  `npm run build` verdes; `git diff --check` limpo.
+- Nenhum teste dependia dos valores hexadecimais antigos da paleta N1/SOC (confirmado por
+  busca) — migração sem quebra.
+- Chromium real (sessão de teste `claudio`): "Histórico de publicações" confirmada (botão
+  reestilizado, conteúdo técnico inalterado). O diálogo "Trocas" não pôde ser exercitado ao
+  vivo nesta sessão porque seu botão de abertura exige `firebaseDashboard.user` real (mesma
+  condição de antes, preservada) — mesma limitação de login Microsoft real já registrada em
+  checkpoints anteriores; coberto por teste automatizado em vez disso.
+
+### Pendências conscientes (fora de escopo deste checkpoint)
+
+- Linha do tempo real de publicações no Histórico (precisa de dado novo, não só visual).
+- Paleta de 17 códigos N1 usa uma técnica mecânica (inverter fundo/texto do mesmo tom) — uma
+  curadoria manual de contraste/acessibilidade dessa paleta específica fica para quando houver
+  necessidade real (nenhum teste de contraste automatizado cobre isso hoje).
