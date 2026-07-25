@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { SHIFTS } from '../constants';
 import type { ShiftId } from '../types';
+import { AppButton } from './ui/AppButton';
 
 interface CustomOption {
   code: string;
@@ -83,17 +84,17 @@ export function CellMenu({ x, y, selectionCount, initialCustom, onPick, onClear,
           onKeyDown={(e) => e.key === 'Enter' && applyCustom()}
           autoFocus={Boolean(initialCustom)}
         />
-        <button className="btn" onClick={applyCustom} disabled={!custom.trim()}>
+        <AppButton onClick={applyCustom} disabled={!custom.trim()}>
           OK
-        </button>
+        </AppButton>
       </div>
       <div className="menu-footer">
-        <button className="btn btn-ghost" onClick={onClear}>
+        <AppButton variant="ghost" onClick={onClear}>
           Limpar
-        </button>
-        <button className="btn btn-ghost" onClick={onClose}>
+        </AppButton>
+        <AppButton variant="ghost" onClick={onClose}>
           Fechar
-        </button>
+        </AppButton>
       </div>
     </div>
   );

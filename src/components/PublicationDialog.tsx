@@ -1,14 +1,36 @@
 import type { PublicationMode } from '../lib/schedulePublishRepository';
 import type { PublicationPreview } from '../lib/publicationPreview';
 import type { Team } from '../types';
+import { AppConfirm } from './ui/AppConfirm';
+import { AppAlert } from './ui/AppAlert';
 
 export function PublicationDialog({ preview, team, busy, onCancel, onPublish }: { preview: PublicationPreview; team: Team; busy: boolean; onCancel: () => void; onPublish: (mode: PublicationMode) => void }) {
   const count = preview.payload.assignments.length + preview.payload.onCallAssignments.length;
-  return <div className="modal-backdrop" role="presentation"><section className="publication-dialog" role="dialog" aria-modal="true" aria-label="Confirmar publicação">
-    <h2>Publicar escala</h2>
-    <dl><dt>Equipe</dt><dd>{team.name}</dd><dt>Responsável</dt><dd>{team.responsibleLogin}</dd><dt>Período</dt><dd>{preview.payload.period.startDate} a {preview.payload.period.endDate}</dd><dt>Arquivo</dt><dd>{preview.payload.period.sourceFileName ?? 'Criação manual'}</dd><dt>Técnicos</dt><dd>{preview.payload.members.length}</dd><dt>{preview.payload.kind === 'ON_CALL' ? 'Plantões' : 'Assignments'}</dt><dd>{count}</dd><dt>Alertas</dt><dd>{preview.alerts}</dd><dt>Destino</dt><dd>{preview.existingPeriod ? `Período existente · ${preview.existingAssignments} registros` : 'Novo período'}</dd></dl>
-    {preview.layoutWarning && <p className="publication-warning" role="alert">{preview.layoutWarning} Confirme somente se a associação estiver correta.</p>}
-    {preview.criticalErrors.map((error) => <p className="publication-error" key={error}>{error}</p>)}
-    <div className="modal-actions"><button className="btn" disabled={busy} onClick={onCancel}>Cancelar</button>{preview.existingPeriod && <button className="btn" disabled={busy || preview.criticalErrors.length > 0} onClick={() => onPublish('update')}>Atualizar período existente</button>}<button className="btn btn-primary" disabled={busy || preview.criticalErrors.length > 0} onClick={() => onPublish(preview.existingPeriod ? 'replace' : 'update')}>{preview.existingPeriod ? 'Substituir escala existente' : 'Publicar'}</button></div>
-  </section></div>;
+  const blocked = busy || preview.criticalErrors.length > 0;
+  return (
+    <AppConfirm
+      title="Publicar escala"
+      cancelLabel="Cancelar"
+      confirmLabel={preview.existingPeriod ? 'Substituir escala existente' : 'Publicar'}
+      busy={busy}
+      confirmDisabled={blocked}
+      onCancel={onCancel}
+      onConfirm={() => onPublish(preview.existingPeriod ? 'replace' : 'update')}
+      secondaryAction={preview.existingPeriod ? { label: 'Atualizar período existente', onClick: () => onPublish('update'), disabled: blocked } : undefined}
+      summary={[
+        { label: 'Equipe', value: team.name },
+        { label: 'Responsável', value: team.responsibleLogin },
+        { label: 'Período', value: `${preview.payload.period.startDate} a ${preview.payload.period.endDate}` },
+        { label: 'Arquivo', value: preview.payload.period.sourceFileName ?? 'Criação manual' },
+        { label: 'Técnicos', value: preview.payload.members.length },
+        { label: preview.payload.kind === 'ON_CALL' ? 'Plantões' : 'Assignments', value: count },
+        { label: 'Alertas', value: preview.alerts },
+        { label: 'Destino', value: preview.existingPeriod ? `Período existente · ${preview.existingAssignments} registros` : 'Novo período' },
+      ]}
+      warning={preview.layoutWarning ? <AppAlert variant="warning">{preview.layoutWarning} Confirme somente se a associação estiver correta.</AppAlert> : undefined}
+      error={preview.criticalErrors.length > 0 ? (
+        <>{preview.criticalErrors.map((error) => <AppAlert key={error} variant="error">{error}</AppAlert>)}</>
+      ) : undefined}
+    />
+  );
 }

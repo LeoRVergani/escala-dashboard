@@ -19,6 +19,8 @@ import type {
 } from '../hooks/useOfficialRemotePublication';
 import { OfficialCorporateLinkForm } from './OfficialCorporateLinkForm';
 import { DiagnosticsPanel, type DiagnosticItem } from './DiagnosticsPanel';
+import { AppButton } from './ui/AppButton';
+import { AppAlert } from './ui/AppAlert';
 
 interface OfficialPublicationWizardProps {
   officialPackage: DemoPublicationPackage | null;
@@ -209,10 +211,10 @@ export function OfficialPublicationWizard({
     <section className="official-wizard" aria-label="Publicar escala">
       <div className="official-wizard-head">
         <h2>Publicar escala</h2>
-        <p className="official-wizard-warning" role="alert">
+        <AppAlert variant="warning">
           Esta área grava dados reais consumidos pelo Escala ICI (KMP). Confira cada etapa
           com atenção antes de confirmar.
-        </p>
+        </AppAlert>
       </div>
 
       <div className="official-wizard-steps" role="tablist" aria-label="Etapas da publicação oficial">
@@ -306,9 +308,7 @@ export function OfficialPublicationWizard({
                 </p>
               )}
               {!onCallImportReady && (
-                <p className="official-publication-error" role="alert">
-                  {onCallGroupSelection.message}
-                </p>
+                <AppAlert variant="error">{onCallGroupSelection.message}</AppAlert>
               )}
             </div>
             <div className="official-publication-validation" role="group" aria-label="Carregar escala oficial publicada">
@@ -329,22 +329,18 @@ export function OfficialPublicationWizard({
                   onChange={(event) => onOfficialScheduleRevisionInputChange(event.target.value)}
                 />
               </label>
-              <button
-                type="button"
-                className="btn"
+              <AppButton
                 disabled={officialScheduleLoading || !officialScheduleTeamId.trim()}
                 onClick={onLoadOfficialActiveSchedule}
               >
                 {officialScheduleLoading ? 'Carregando…' : `Carregar escala oficial ativa para a equipe ${officialScheduleTeamId || 'X'}`}
-              </button>
-              <button
-                type="button"
-                className="btn"
+              </AppButton>
+              <AppButton
                 disabled={officialScheduleLoading || !officialScheduleTeamId.trim() || !officialScheduleRevisionInput.trim()}
                 onClick={onLoadOfficialRevisionSchedule}
               >
                 Consultar revisão
-              </button>
+              </AppButton>
               {officialScheduleRevisionBase !== null && (
                 <span>Revisão-base para publicação: {officialScheduleRevisionBase}</span>
               )}
@@ -412,9 +408,9 @@ export function OfficialPublicationWizard({
             <h3>4 · Vínculo corporativo</h3>
             <OfficialCorporateLinkForm pkg={officialPackage} link={corporateLink} onChange={onCorporateLinkChange} />
             {corporateLink.memberId && corporateLink.teamId && !linkOk && (
-              <p className="official-publication-link-error" role="alert">
+              <AppAlert variant="error">
                 {referentialLinkError ?? 'O vínculo selecionado usa dados do Ambiente Demo, incompatíveis com o workspace ici-dev.'}
-              </p>
+              </AppAlert>
             )}
           </div>
         )}
@@ -423,9 +419,9 @@ export function OfficialPublicationWizard({
           <div className="official-wizard-step-content">
             <h3>5 · Validar escala</h3>
             <p>Executa a validação completa no servidor sem gravar nada — sempre disponível, mesmo com a publicação oficial desabilitada.</p>
-            <button type="button" className="btn" disabled={!linkOk || busy !== 'IDLE' || !backendOnline} onClick={onValidate}>
+            <AppButton disabled={!linkOk || busy !== 'IDLE' || !backendOnline} loading={busy === 'VALIDATING'} onClick={onValidate}>
               {busy === 'VALIDATING' ? 'Validando…' : 'Executar dry-run'}
-            </button>
+            </AppButton>
             {validation && (
               <div className="official-publication-validation" role="status">
                 <strong>Última validação: {validation.status}</strong>
@@ -434,13 +430,13 @@ export function OfficialPublicationWizard({
                 <span>Checksum: {validation.checksumStatus}</span>
               </div>
             )}
-            {lastError && <p className="official-publication-error" role="alert">{lastError.message}</p>}
+            {lastError && <AppAlert variant="error">{lastError.message}</AppAlert>}
             {hasRevisionConflict && (
               <div className="official-publication-error" role="alert">
                 <p>Existe uma versão mais recente publicada desde que você carregou esta escala.</p>
-                <button type="button" className="btn" onClick={onReloadOfficialSchedule} disabled={officialScheduleLoading}>
+                <AppButton onClick={onReloadOfficialSchedule} disabled={officialScheduleLoading}>
                   Recarregar
-                </button>
+                </AppButton>
               </div>
             )}
           </div>
@@ -475,13 +471,11 @@ export function OfficialPublicationWizard({
         {step === 7 && (
           <div className="official-wizard-step-content">
             <h3>7 · Confirmação</h3>
-            <button type="button" className="btn btn-primary" disabled={!canPublish} onClick={onPublishClick}>
+            <AppButton variant="primary" disabled={!canPublish} onClick={onPublishClick}>
               Publicar oficialmente
-            </button>
+            </AppButton>
             {!writeEnabled && (
-              <p className="official-publication-disabled" role="status">
-                Publicação oficial desabilitada neste ambiente.
-              </p>
+              <AppAlert variant="warning">Publicação oficial desabilitada neste ambiente.</AppAlert>
             )}
           </div>
         )}
@@ -500,9 +494,9 @@ export function OfficialPublicationWizard({
                 {hasRevisionConflict && (
                   <>
                     <p>Existe uma versão mais recente publicada desde que você carregou esta escala.</p>
-                    <button type="button" className="btn" onClick={onReloadOfficialSchedule} disabled={officialScheduleLoading}>
+                    <AppButton onClick={onReloadOfficialSchedule} disabled={officialScheduleLoading}>
                       Recarregar
-                    </button>
+                    </AppButton>
                   </>
                 )}
               </div>
@@ -515,8 +509,8 @@ export function OfficialPublicationWizard({
       </div>
 
       <div className="official-wizard-nav">
-        <button type="button" className="btn" disabled={step === 1} onClick={() => goTo(step - 1)}>Voltar</button>
-        <button type="button" className="btn" disabled={step === 8 || !reachable[step + 1]} onClick={() => goTo(step + 1)}>Avançar</button>
+        <AppButton disabled={step === 1} onClick={() => goTo(step - 1)}>Voltar</AppButton>
+        <AppButton disabled={step === 8 || !reachable[step + 1]} onClick={() => goTo(step + 1)}>Avançar</AppButton>
       </div>
     </section>
   );

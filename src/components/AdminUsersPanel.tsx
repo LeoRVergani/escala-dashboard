@@ -3,6 +3,8 @@ import { firebaseServices } from '../lib/firebase';
 import type { AuthenticatedDashboardUser, Team } from '../types';
 import type { OnCallGroup } from '../types';
 import { OnCallGroupsAdminPanel } from './OnCallGroupsAdminPanel';
+import { AppButton } from './ui/AppButton';
+import { AppAlert } from './ui/AppAlert';
 
 const API_BASE_URL = (import.meta.env.VITE_DASHBOARD_API_BASE_URL as string | undefined) || 'http://127.0.0.1:3001';
 
@@ -111,9 +113,7 @@ export function AdminUsersPanel({ user, teams, onCallGroups, onReloadOnCallGroup
       <section className="admin-users-panel" aria-label="Administração">
         <div className="official-wizard-head">
           <h2>Administração</h2>
-          <p className="official-wizard-warning" role="alert">
-            Acesso restrito a administradores do sistema.
-          </p>
+          <AppAlert variant="warning">Acesso restrito a administradores do sistema.</AppAlert>
         </div>
       </section>
     );
@@ -178,20 +178,20 @@ export function AdminUsersPanel({ user, teams, onCallGroups, onReloadOnCallGroup
     <section className="admin-users-panel" aria-label="Administração">
       <div className="official-wizard-head">
         <h2>Administração</h2>
-        <p className="official-wizard-warning" role="alert">
+        <AppAlert variant="warning">
           Alterações nesta área afetam quem pode publicar escalas oficiais e administrar acessos.
-        </p>
+        </AppAlert>
       </div>
 
-      {error && <p className="admin-users-error" role="alert">{error}</p>}
+      {error && <AppAlert variant="error">{error}</AppAlert>}
 
       <div className="admin-users-layout">
         {canAdministerUsers && <section className="official-wizard-panel admin-users-list" aria-label="Usuários administrativos">
           <div className="admin-users-list-head">
             <h3>Usuários</h3>
-            <button type="button" className="btn" onClick={() => void loadUsers()} disabled={loading}>
+            <AppButton onClick={() => void loadUsers()} disabled={loading}>
               Atualizar
-            </button>
+            </AppButton>
           </div>
           {loading ? (
             <p className="diagnostics-empty" role="status">Carregando usuários…</p>
@@ -219,9 +219,9 @@ export function AdminUsersPanel({ user, teams, onCallGroups, onReloadOnCallGroup
                       <td>{record.grantedBy ?? '—'}</td>
                       <td>{formatGrantedAt(record.grantedAt)}</td>
                       <td>
-                        <button type="button" className="btn" onClick={() => startEdit(record)}>
+                        <AppButton onClick={() => startEdit(record)}>
                           Editar
-                        </button>
+                        </AppButton>
                       </td>
                     </tr>
                   ))}
@@ -279,13 +279,13 @@ export function AdminUsersPanel({ user, teams, onCallGroups, onReloadOnCallGroup
             {teams.length === 0 && <p className="diagnostics-empty">Nenhuma equipe disponível para seleção.</p>}
           </fieldset>
           <div className="official-publication-actions">
-            <button type="submit" className="btn btn-primary" disabled={saving}>
+            <AppButton type="submit" variant="primary" loading={saving}>
               {saving ? 'Salvando…' : editingId ? 'Salvar alterações' : 'Cadastrar'}
-            </button>
+            </AppButton>
             {editingId && (
-              <button type="button" className="btn" onClick={resetForm}>
+              <AppButton onClick={resetForm}>
                 Cancelar edição
-              </button>
+              </AppButton>
             )}
           </div>
         </form>}

@@ -20,6 +20,7 @@ import type {
 } from '../types';
 import { CellMenu } from './CellMenu';
 import { calculateConsecutiveWorkdayCounters } from '../lib/assignments';
+import { AppButton } from './ui/AppButton';
 
 export type CellKey = `${string}:${number}`;
 export const cellKey = (techId: string, day: number): CellKey => `${techId}:${day}`;
@@ -280,21 +281,21 @@ export function ScheduleGrid(props: Props) {
             {weeks.map((w, i) => (
               <th key={w.start} colSpan={w.end - w.start + 1} className="week-cell">
                 Sem {i + 1}{' '}
-                <button
-                  className="btn btn-ghost"
+                <AppButton
+                  variant="ghost"
                   title={`Copiar semana ${i + 1} (dias ${w.start}–${w.end})`}
                   onClick={() => props.onCopyWeek(w.start)}
                 >
                   ⧉
-                </button>
-                <button
-                  className="btn btn-ghost"
+                </AppButton>
+                <AppButton
+                  variant="ghost"
                   title={`Colar semana copiada a partir do dia ${w.start}`}
                   disabled={!props.canPasteWeek}
                   onClick={() => props.onPasteWeek(w.start)}
                 >
                   ⇩
-                </button>
+                </AppButton>
               </th>
             ))}
           </tr>
@@ -395,22 +396,23 @@ export function ScheduleGrid(props: Props) {
                           </span>
                         </span>
                         <span className="tech-actions">
-                          <button
-                            className="icon-btn"
+                          <AppButton
+                            iconOnly
                             title="Editar técnico"
                             aria-label={`Editar ${t.name ?? t.login}`}
                             onClick={() => setEditingTech(t.id)}
                           >
                             ✎
-                          </button>
-                          <button
-                            className="icon-btn danger"
+                          </AppButton>
+                          <AppButton
+                            iconOnly
+                            variant="danger"
                             title={props.serviceDeskN1 ? 'Remover linha da escala' : 'Remover técnico'}
                             aria-label={`Remover ${t.name ?? t.login}`}
                             onClick={() => props.onRemoveTechnician(t.id)}
                           >
                             ✕
-                          </button>
+                          </AppButton>
                         </span>
                       </span>
                     )}
@@ -468,17 +470,15 @@ export function ScheduleGrid(props: Props) {
         >
           <div className="menu-note">Dia {dayMenu.day}</div>
           <div className="menu-footer" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-            <button
-              className="btn"
+            <AppButton
               onClick={() => {
                 props.onCopyDay(dayMenu.day);
                 setDayMenu(null);
               }}
             >
               Copiar dia
-            </button>
-            <button
-              className="btn"
+            </AppButton>
+            <AppButton
               disabled={!props.canPasteDay}
               onClick={() => {
                 props.onPasteDay(dayMenu.day);
@@ -486,16 +486,16 @@ export function ScheduleGrid(props: Props) {
               }}
             >
               Colar dia copiado
-            </button>
-            <button
-              className="btn btn-danger"
+            </AppButton>
+            <AppButton
+              variant="danger"
               onClick={() => {
                 props.onClearDay(dayMenu.day);
                 setDayMenu(null);
               }}
             >
               Limpar dia
-            </button>
+            </AppButton>
           </div>
         </div>
       )}
@@ -536,9 +536,9 @@ function AddTechForm({
         onChange={(e) => setName(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && submit()}
       />
-      <button className="btn btn-primary" disabled={!canAdd} onClick={submit}>
+      <AppButton variant="primary" disabled={!canAdd} onClick={submit}>
         Adicionar
-      </button>
+      </AppButton>
       <span className="field-hint">
         {serviceDeskN1 ? 'A nova linha começa no turno da manhã; ajuste turno e pausa na própria grade.' : 'Informe login, nome ou os dois.'}
       </span>
@@ -577,12 +577,12 @@ function TechEditor({
         onChange={(e) => setName(e.target.value)}
         onKeyDown={(e) => e.key === 'Enter' && onSave(login.trim(), name.trim())}
       />
-      <button className="icon-btn" title="Salvar" onClick={() => onSave(login.trim(), name.trim())}>
+      <AppButton iconOnly title="Salvar" onClick={() => onSave(login.trim(), name.trim())}>
         ✔
-      </button>
-      <button className="icon-btn" title="Cancelar" onClick={onCancel}>
+      </AppButton>
+      <AppButton iconOnly title="Cancelar" onClick={onCancel}>
         ↩
-      </button>
+      </AppButton>
     </span>
   );
 }

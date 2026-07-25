@@ -82,6 +82,7 @@ import { loadOnCallGroups } from './lib/onCallGroupsRepository';
 import { activeGroupsForTeam, resolveOnCallGroupForImport } from './lib/onCallGroups';
 import type { ShiftSwapRequest, Team } from './types';
 import { AppShell, type AppShellSectionState } from './components/AppShell';
+import { AppToast } from './components/ui/AppToast';
 import { Home, type HomeSummary } from './components/Home';
 import { EntryScreen } from './components/EntryScreen';
 import { SchedulesOverview } from './components/SchedulesOverview';
@@ -2152,11 +2153,7 @@ export default function App() {
         void saveTeam(firebaseDashboard.user!, team).then(() => firebaseDashboard.reloadTeams(firebaseDashboard.user!)).then(() => reloadOnCallGroups()).then(() => { setShowTeamDialog(false); notify('Equipe salva.'); }).catch((error) => firebaseDashboard.setError((error as Error).message)).finally(() => setFirebaseBusy(false));
       }} />}
 
-      {toast && (
-        <div className="toast" role="status">
-          {toast}
-        </div>
-      )}
+      <AppToast message={toast} />
     </div>
   );
 }

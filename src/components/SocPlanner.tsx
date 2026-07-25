@@ -6,6 +6,7 @@ import { SOC_SHIFT_IDS, type SocShiftId } from '../lib/socPlanner';
 import { calculateConsecutiveWorkdayCounters, isShiftAssignment, isSpecialStatusAssignment } from '../lib/assignments';
 import type { CellValue, ScheduleState, ShiftId } from '../types';
 import { useMiddleMouseHorizontalPan } from '../hooks/useMiddleMouseHorizontalPan';
+import { AppButton } from './ui/AppButton';
 
 type DragItem = { technicianId: string; fromDay?: number; value?: CellValue };
 interface Props {
@@ -172,7 +173,7 @@ export function SocPlanner({ state, compact, onCompactChange, onMove, onRemove, 
       <select defaultValue={state.cells[editing.technicianId]?.[editing.day]?.shift} onChange={(e) => { const shift = e.target.value as ShiftId; onEdit(editing.technicianId, editing.day, { shift }); setEditing(null); }}>
         {SHIFTS.map((shift) => <option value={shift.id} key={shift.id}>{shift.label}</option>)}
       </select>
-      <button className="btn" onClick={() => setEditing(null)}>Cancelar</button>
+      <AppButton onClick={() => setEditing(null)}>Cancelar</AppButton>
     </div></div>}
   </section>;
 }

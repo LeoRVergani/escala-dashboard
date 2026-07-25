@@ -2053,3 +2053,85 @@ details.block li { margin: 2px 0; }
   text-align: center;
 }
 .app-crash h1 { margin: 0; font-size: 18px; color: var(--danger); }
+
+/* =====================================================================
+   Spec 13 — Design system: componentes padrão (AppButton, AppDialog,
+   AppConfirm, AppAlert, AppToast, AppDrawer). Reaproveita os valores já
+   existentes (`.btn`/`.modal-backdrop`/`.publication-error`/
+   `.official-wizard-warning`/`.conflict-panel` etc.) - nenhuma cor nova,
+   só consolidação sob nomes únicos para uso por componentes novos.
+   ===================================================================== */
+
+.app-btn__spinner {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  opacity: 0.85;
+  animation: app-btn-spin 0.7s linear infinite;
+}
+@keyframes app-btn-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .app-btn__spinner { animation-duration: 1.4s; }
+}
+
+.app-dialog {
+  width: min(680px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--card-elevated);
+  box-shadow: var(--shadow);
+}
+.app-dialog__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.app-dialog__head h2 { margin: 0; font-size: 17px; }
+.app-dialog__description { margin: 4px 0 0; color: var(--ink-soft); font-size: 13px; }
+
+.app-confirm__summary { display: grid; grid-template-columns: max-content 1fr; gap: 5px 12px; margin: 12px 0; }
+.app-confirm__summary dt { font-weight: 800; }
+.app-confirm__summary dd { margin: 0; }
+
+.app-alert { margin: 8px 0; font-size: 12px; }
+.app-alert--error { color: var(--danger); font-weight: 800; }
+.app-alert--warning {
+  background: var(--warn-soft);
+  border: 1px solid var(--warn-border);
+  color: var(--warn-fg);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  font-weight: 700;
+}
+.app-alert--info {
+  background: var(--action-soft);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  color: var(--ink);
+}
+.app-alert--success {
+  background: var(--success-soft);
+  border: 1px solid var(--success);
+  color: var(--success);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  font-weight: 700;
+}
+
+.app-drawer { display: flex; flex-direction: column; gap: 8px; }
+.app-drawer--right.app-drawer:not(.conflict-panel) {
+  width: min(360px, 100%);
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card-elevated);
+  box-shadow: var(--shadow);
+}
+.app-drawer--left.app-drawer:not(.conflict-panel) {
+  width: min(360px, 100%);
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card-elevated);
+}

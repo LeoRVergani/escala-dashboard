@@ -130,7 +130,7 @@ describe('OfficialPublicationPanel', () => {
       />,
     );
 
-    const dialog = screen.getByRole('dialog', { name: 'Publicar workspace oficial ici-dev' });
+    const dialog = screen.getByRole('dialog', { name: 'Confirmar publicação oficial — ici-dev' });
     expect(dialog).toBeInTheDocument();
     expect(screen.getByText('ici-dev')).toBeInTheDocument();
     expect(screen.getByText(`${member.displayName} — ${team.name}`)).toBeInTheDocument();

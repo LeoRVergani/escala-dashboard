@@ -2,6 +2,17 @@
 
 ## 1.16.0 — 23/07/2026
 
+- **Frente B1 — design system: componentes padrão** (spec
+  `docs/spec/13-DASHBOARD-DESIGN-SYSTEM-COMPONENTES-PADRAO.md`). Adiciona
+  `AppButton`/`AppDialog`/`AppConfirm`/`AppAlert`/`AppToast`/`AppDrawer` em
+  `src/components/ui/`, empacotando exatamente as classes CSS já existentes (nenhuma
+  linguagem visual nova). `AppDialog` adiciona Escape, focus trap, foco inicial, devolução de
+  foco e bloqueio de scroll a todos os modais que o adotam. Migra por composição:
+  `SchedulesOverview`, `TeamHomePage`, `ScheduleGrid` (só a casca), `SocPlanner`, `CellMenu`,
+  `StartScheduleDialog`, `PublicationDialog`, `OfficialPublicationWizard`,
+  `OfficialPublishDialog`, `SwapRequestsDialog`, `AdminUsersPanel`, `ConflictAlertsPanel` e o
+  toast de `App.tsx` — zero botão/handler removido, zero redesign perceptível. 475 → 511
+  testes.
 - **FASE 14K — integração visual Órbita de Turnos, marca e nomenclatura**
   (spec `docs/spec/12-DASHBOARD-FASE14K-ORBITA-DE-TURNOS-INTEGRACAO-VISUAL.md`).
   Nenhuma publicação real no Firebase, nenhum deploy e nenhum XLS real versionado.

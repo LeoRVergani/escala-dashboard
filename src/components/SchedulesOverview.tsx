@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { Team } from '../types';
+import { AppButton } from './ui/AppButton';
 
 interface SchedulesOverviewProps {
   teams: Team[];
@@ -22,7 +23,7 @@ export function SchedulesOverview({ teams, selectedTeamId, onSelectTeam, onCreat
     <main className="orbit-page schedules-page">
       <header className="orbit-page__header">
         <div><span className="page-eyebrow">Órbitas de trabalho</span><h1>Escalas</h1><p>Encontre uma equipe autorizada e continue a preparação do período.</p></div>
-        <button type="button" className="btn btn-primary" onClick={() => onCreate(selectedTeamId || filtered[0]?.id)}>Criar nova escala</button>
+        <AppButton variant="primary" onClick={() => onCreate(selectedTeamId || filtered[0]?.id)}>Criar nova escala</AppButton>
       </header>
       <div className="schedule-filters" role="search">
         <label>Buscar equipe<input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Nome ou código" /></label>
@@ -34,7 +35,7 @@ export function SchedulesOverview({ teams, selectedTeamId, onSelectTeam, onCreat
         {filtered.map((team) => (
           <article className={`schedule-list__item${team.id === selectedTeamId ? ' is-selected' : ''}`} key={team.id}>
             <div><span className="destination-seal"><strong>{team.scheduleKind === 'ON_CALL' ? 'Plantão' : 'Escala'}</strong><span>{team.name}</span></span><h2>{team.name}</h2><p>{team.code} · {team.active ? 'Equipe ativa' : 'Equipe inativa'}</p></div>
-            <div className="schedule-list__actions"><button type="button" className="btn" onClick={() => { onSelectTeam(team.id); onOpen(team.id); }}>Abrir equipe</button><button type="button" className="btn btn-ghost" onClick={() => onCreate(team.id)}>Preparar período</button></div>
+            <div className="schedule-list__actions"><AppButton onClick={() => { onSelectTeam(team.id); onOpen(team.id); }}>Abrir equipe</AppButton><AppButton variant="ghost" onClick={() => onCreate(team.id)}>Preparar período</AppButton></div>
           </article>
         ))}
       </div>
